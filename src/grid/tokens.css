@@ -1,0 +1,57 @@
+/*
+ * webterm grid tokens.
+ *
+ * One font, one size, one line-height for the whole document (PLAN §2.2).
+ * Put exactly one font class on <html>.
+ *
+ * Line-height is a whole number of CSS px at every font-size:
+ *
+ *   line-height = round(down, font-size × --wt-lh-ratio, 1px)
+ *
+ * Chromium rounds font ascent/descent to whole px, so the seam-free limit
+ * for stacked box-drawing (│ ┼) and block (█) glyphs is a whole px count
+ * per size, not a fixed ratio. Each --wt-lh-ratio is the largest value whose
+ * rounded result stays at or under the measured limit for every size from
+ * 10 to 32px (tools/calibrate.js -> test/calibration.json, PLAN §4.7).
+ *
+ * The family stacks deliberately have no second named font: a fallback
+ * font has different glyph extents and the calibration would not hold.
+ * Any other font needs its own calibration.
+ */
+
+:root {
+  --wt-font-size: 16px;            /* the only px in the framework */
+  --wt-font-family: "JetBrains Mono", monospace;
+  --wt-lh-ratio: 1.291;
+  --wt-line-height: round(down, calc(var(--wt-font-size) * var(--wt-lh-ratio)), 1px);
+
+  font-family: var(--wt-font-family);
+  font-size: var(--wt-font-size);
+  line-height: var(--wt-line-height);
+  font-weight: 400;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+  font-kerning: none;
+  font-synthesis: none;
+  letter-spacing: 0;
+  word-spacing: 0;
+  tab-size: 4;
+}
+
+/* 16px -> 20px rows. Calibrated: JetBrains Mono 2.304. */
+:root.font-jetbrains-mono {
+  --wt-font-family: "JetBrains Mono", monospace;
+  --wt-lh-ratio: 1.291;
+}
+
+/* 16px -> 19px rows. Calibrated: Iosevka 22.1.2. */
+:root.font-iosevka {
+  --wt-font-family: "Iosevka", monospace;
+  --wt-lh-ratio: 1.199;
+}
+
+/* 16px -> 18px rows. Calibrated: DejaVu Sans Mono 2.37. */
+:root.font-dejavu-sans-mono {
+  --wt-font-family: "DejaVu Sans Mono", monospace;
+  --wt-lh-ratio: 1.153;
+}

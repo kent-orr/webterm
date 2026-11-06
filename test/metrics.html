@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm metrics</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/grid/tokens.css">
+<style>
+  /* Calibration page: fixed black-on-white so pixel analysis is theme-independent. */
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+  body { padding: 0; }
+  #panel { padding: 1lh 2ch; border-bottom: 1px dashed #999; }
+  #panel label { margin-right: 2ch; }
+  #panel input, #panel select { font: inherit; width: 10ch; }
+  #panel output { white-space: pre; display: block; margin-top: 1lh; }
+  html.auto #panel { display: none; }
+  /* --offset shifts the specimens by a fractional layout px (not a transform). */
+  #stage { padding: calc(1lh + var(--offset, 0px)) 2ch 1lh 2ch; }
+  .specimen { margin: 0 0 1lh 0; padding: 0; font: inherit; line-height: inherit; white-space: pre; }
+  .bold { font-weight: 700; }
+  #cell { width: 1ch; height: 1lh; position: absolute; visibility: hidden; }
+  #cells { width: 80ch; height: 12lh; position: absolute; visibility: hidden; }
+  .advances { white-space: pre; }
+  .advances span { display: inline-block; }
+</style>
+</head>
+<body>
+<section id="panel">
+  <label>font <select id="in-font">
+    <option value="jetbrains-mono">JetBrains Mono</option>
+    <option value="iosevka">Iosevka</option>
+    <option value="dejavu-sans-mono">DejaVu Sans Mono</option>
+  </select></label>
+  <label>size px <input id="in-size" type="number" min="8" max="48" step="1"></label>
+  <label>line-height <input id="in-lh" type="number" min="0.8" max="2" step="0.0025" placeholder="calibrated"></label>
+  <label>offset px <input id="in-offset" type="number" min="0" max="1" step="0.1" value="0"></label>
+  <output id="readout"></output>
+</section>
+
+<main id="stage">
+  <div id="cell"></div>
+  <div id="cells" class="probe"></div>
+
+  <!-- Reference ink: each analyzed glyph once, isolated (no overlap, no neighbours). -->
+  <pre id="solo" class="specimen"></pre>
+
+  <!-- Vertical continuity: one glyph per column, columns separated by a space. -->
+  <pre id="vert" class="specimen" data-glyphs="│║┃┼█"></pre>
+
+  <!-- Horizontal continuity: one glyph per row, rows separated by a blank line. -->
+  <pre id="horiz" class="specimen" data-glyphs="─═━┼█" data-run="40"></pre>
+
+  <!-- Visual reference only. -->
+  <pre id="boxes" class="specimen">┌─ single ───┐ ╔═ double ═══╗ ╭─ round ────╮ ┏━ heavy ━━━━┓ +- ascii ----+
+│ ls -la     │ ║ cat x.log  ║ │ top        │ ┃ make all   ┃ | echo ok    |
+├────────────┤ ╠════════════╣ ├────────────┤ ┣━━━━━━━━━━━━┫ +------------+
+│ ███▓▒░     │ ║ 54% ███░░░ ║ │ [x] [ ]    │ ┃ ( ) (•)    ┃ | [ OK ]     |
+└────────────┘ ╚════════════╝ ╰────────────╯ ┗━━━━━━━━━━━━┛ +------------+</pre>
+
+  <!-- Advance widths: every run is 80 glyphs and must be exactly 80ch wide. -->
+  <div id="advances" class="advances"></div>
+</main>
+
+<script>
+(() => {
+  const ROWS = 12;
+  const ADV_N = 80;
+  const ADV_GLYPHS = [
+    ["0", ""], ["│", ""], ["─", ""], ["█", ""], ["═", ""], ["┼", ""],
+    ["M", ""], ["0", "bold"], ["─", "bold"], ["█", "bold"],
+  ];
+  const FONTS = {
+    "jetbrains-mono": "JetBrains Mono",
+    "iosevka": "Iosevka",
+    "dejavu-sans-mono": "DejaVu Sans Mono",
+  };
+
+  const params = new URLSearchParams(location.search);
+  const root = document.documentElement;
+  if (params.has("auto")) root.classList.add("auto");
+
+  function applySettings({ font, size, lh, offset }) {
+    for (const k of Object.keys(FONTS)) root.classList.remove("font-" + k);
+    root.classList.add("font-" + font);
+    if (size) root.style.setProperty("--wt-font-size", size + "px");
+    else root.style.removeProperty("--wt-font-size");
+    if (lh) root.style.setProperty("--wt-line-height", String(lh));
+    else root.style.removeProperty("--wt-line-height");
+    root.style.setProperty("--offset", (offset || 0) + "px");
+  }
+
+  function buildSpecimens() {
+    const vert = document.getElementById("vert");
+    const vg = [...vert.dataset.glyphs];
+    vert.textContent = Array.from({ length: ROWS }, () => vg.join(" ")).join("\n");
+
+    const horiz = document.getElementById("horiz");
+    const hg = [...horiz.dataset.glyphs];
+    // Line 1: vertical glyphs, line 3: horizontal glyphs; blank line between.
+    document.getElementById("solo").textContent = vg.join(" ") + "\n\n" + hg.join(" ");
+    const run = Number(horiz.dataset.run);
+    horiz.textContent = hg.map(g => g.repeat(run)).join("\n\n");
+
+    const adv = document.getElementById("advances");
+    adv.textContent = "";
+    for (const [g, cls] of ADV_GLYPHS) {
+      const s = document.createElement("span");
+      s.textContent = g.repeat(ADV_N);
+      s.dataset.glyph = g;
+      if (cls) s.className = cls;
+      adv.appendChild(s);
+      adv.appendChild(document.createElement("br"));
+    }
+  }
+
+  function rect(el) {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
+
+  // Everything the tests need, in CSS px.
+  window.wtMeasure = () => {
+    const cell = document.getElementById("cell").getBoundingClientRect();
+    const cs = getComputedStyle(root);
+    const vert = document.getElementById("vert");
+    const horiz = document.getElementById("horiz");
+    return {
+      font: [...root.classList].find(c => c.startsWith("font-")).slice(5),
+      fontFamily: cs.fontFamily,
+      fontSize: parseFloat(cs.fontSize),
+      lineHeightPx: parseFloat(cs.lineHeight),
+      lhRatio: parseFloat(cs.getPropertyValue("--wt-lh-ratio")),
+      ch: cell.width,
+      lh: cell.height,
+      // Width of an 80ch box and height of a 12lh box, measured by layout.
+      ch80: document.getElementById("cells").getBoundingClientRect().width,
+      lh12: document.getElementById("cells").getBoundingClientRect().height,
+      rows: ROWS,
+      solo: { rect: rect(document.getElementById("solo")) },
+      vert: { rect: rect(vert), glyphs: [...vert.dataset.glyphs] },
+      horiz: { rect: rect(horiz), glyphs: [...horiz.dataset.glyphs], run: Number(horiz.dataset.run) },
+      advances: [...document.querySelectorAll("#advances span")].map(s => ({
+        glyph: s.dataset.glyph,
+        bold: s.classList.contains("bold"),
+        n: ADV_N,
+        width: s.getBoundingClientRect().width,
+      })),
+      fontsLoaded: [...document.fonts].filter(f => f.status === "loaded").map(f => `${f.family}:${f.weight}`),
+    };
+  };
+
+  // Used by the calibration sweep to change line-height without reloading.
+  window.wtApply = async (settings) => {
+    applySettings(settings);
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return window.wtMeasure();
+  };
+
+  function updateReadout() {
+    const m = window.wtMeasure();
+    document.getElementById("readout").textContent =
+      `family       ${m.fontFamily}\n` +
+      `font-size    ${m.fontSize}px\n` +
+      `1ch          ${(m.ch80 / 80).toFixed(4)}px  (80ch / 80)\n` +
+      `1lh          ${m.lh.toFixed(4)}px  (ratio ${(m.lh / m.fontSize).toFixed(4)}, --wt-lh-ratio ${m.lhRatio})\n` +
+      `loaded       ${m.fontsLoaded.join(", ") || "(none)"}`;
+  }
+
+  function fromPanel() {
+    return {
+      font: document.getElementById("in-font").value,
+      size: Number(document.getElementById("in-size").value) || null,
+      lh: Number(document.getElementById("in-lh").value) || null,
+      offset: Number(document.getElementById("in-offset").value) || 0,
+    };
+  }
+
+  const initial = {
+    font: params.get("font") || "jetbrains-mono",
+    size: params.has("size") ? Number(params.get("size")) : null,
+    lh: params.has("lh") ? Number(params.get("lh")) : null,
+    offset: params.has("offset") ? Number(params.get("offset")) : 0,
+  };
+  if (!(initial.font in FONTS)) throw new Error("unknown font " + initial.font);
+
+  buildSpecimens();
+  applySettings(initial);
+
+  document.getElementById("in-font").value = initial.font;
+  document.fonts.ready.then(() => {
+    const m = window.wtMeasure();
+    document.getElementById("in-size").value = initial.size || m.fontSize;
+    document.getElementById("in-lh").value = initial.lh || "";
+    document.getElementById("in-offset").value = initial.offset;
+    updateReadout();
+    for (const id of ["in-font", "in-size", "in-lh", "in-offset"]) {
+      document.getElementById(id).addEventListener("input", async () => {
+        if (id === "in-font") document.getElementById("in-lh").value = "";
+        await window.wtApply(fromPanel());
+        updateReadout();
+      });
+    }
+    root.dataset.ready = "1";
+  });
+})();
+</script>
+</body>
+</html>

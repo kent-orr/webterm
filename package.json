@@ -1,0 +1,16 @@
+{
+  "name": "webterm",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A CSS framework where every element occupies an integer number of character cells.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.spec.js",
+    "calibrate": "node tools/calibrate.js",
+    "font-limits": "python3 tools/font-limits.py > fonts/metrics.json"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0",
+    "pngjs": "7.0.0"
+  }
+}

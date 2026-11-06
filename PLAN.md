@@ -63,13 +63,20 @@ These are non-negotiable in the core layer. Every component must satisfy them.
 
 ### 4.1 Root tokens
 
+Implemented in `src/grid/tokens.css`. Line-height is whole CSS px at every
+size, derived from a per-font calibrated ratio (§4.7):
+
 ```css
 :root {
-  font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
-  font-size: 16px;            /* the only px in the framework */
-  line-height: 1.2;           /* tuned per font, see §4.7 */
+  --wt-font-size: 16px;            /* the only px in the framework */
+  --wt-lh-ratio: 1.291;            /* per font, see §4.7 */
+  --wt-line-height: round(down, calc(var(--wt-font-size) * var(--wt-lh-ratio)), 1px);
+  font-family: var(--wt-font-family);
+  font-size: var(--wt-font-size);
+  line-height: var(--wt-line-height);
   font-variant-ligatures: none;
   font-kerning: none;
+  font-synthesis: none;
   letter-spacing: 0;
   tab-size: 4;
 }
@@ -158,20 +165,47 @@ Zero font-size changes. Proposed scale:
 - **Nav / menu** — horizontal list, active item inverse.
 - **Status bar** — full-width inverse strip pinned to bottom.
 
-### 4.7 Font metrics (make-or-break)
+### 4.7 Font metrics (make-or-break) — done, milestone 1
 
-Box-drawing glyphs connect vertically only when glyph height equals the
-line box height. A `line-height` of 1.2 leaves a 1–3px gap in `│` every
-row on most fonts.
+Box-drawing glyphs connect vertically only when they overshoot the line box.
+Measured in Chromium with `test/metrics.html` + `tools/calibrate.js`
+(sizes 10–32px, DPR 1 / 1.5 / 2, sub-pixel offsets 0 / 0.5):
 
-Plan:
-- Pick 3 candidate fonts: JetBrains Mono, DejaVu Sans Mono, Iosevka.
-- Build a metrics test page that renders a tall `│` column and a `┼` grid.
-- Find the line-height per font where seams close, and ship a per-font
-  override: `.font-jetbrains { line-height: 1.19 }` etc.
-- Verify `1ch` is truly the cell advance for each (it is the width of `0`;
-  in monospace fonts this equals every glyph, but confirm).
-- Document that user-supplied fonts need the same calibration.
+| font             | `--wt-lh-ratio` | 16px row | theory (font tables) |
+|------------------|-----------------|----------|----------------------|
+| JetBrains Mono   | 1.291           | 20px     | blocks 1.32, lines 1.52 |
+| Iosevka          | 1.199           | 19px     | blocks 1.18 (hhea), lines 1.23 |
+| DejaVu Sans Mono | 1.153           | 18px     | blocks & lines 1.18  |
+
+Findings:
+
+- **Limit is a whole px per size, not a ratio.** Chromium rounds ascent and
+  descent to whole px, so the seam-free line-height at each size is an
+  integer N(size) with ~0.02px slack. A fixed unitless ratio either wastes a
+  pixel at some sizes or seams at others. Hence the `round(down, …, 1px)`
+  formula: K is the largest ratio with floor(size·K) ≤ N(size) for every
+  size 10–32px. At 16px all three fonts hit their per-size optimum; other
+  sizes lose at most 1px.
+- **Blocks bind, not lines.** `█` spans exactly ascent+descent, so it is the
+  tighter constraint. We require `█` to stack cleanly, as in a real terminal.
+- **Chromium ignores USE_TYPO_METRICS for Iosevka**: measured limits match
+  the hhea prediction, not typo. Theory in `fonts/metrics.json`
+  (`tools/font-limits.py`) is a guide; the empirical sweep is authoritative.
+- **`1ch` is exact for layout.** `Nch` equals N glyph advances within one
+  LayoutUnit (1/64px) at every size, regular and bold; no drift with N.
+- **Google Fonts / Fontsource JetBrains Mono lacks U+2500–259F.** Borders
+  silently fall back to another font. We bundle the official v2.304 build
+  (`fonts/`).
+- **Horizontal seams are a font/size property, not line-height.** When a cell
+  is a fractional number of device px, glyphs that end exactly on the advance
+  (`█` in all three fonts; `─`/`┼` in Iosevka) leave a faint lighter column
+  (up to ~35% lighter for `█`). Integer device-px cells are seamless (tested).
+  Consequence for §4.6 progress bars: do not rely on runs of `█` at
+  fractional cell widths; see §8.
+
+Re-run after changing a font file or Chromium version:
+`npm run font-limits && npm run calibrate`, then copy each K into
+`tokens.css` (the spec fails if they disagree).
 
 ## 5. Layer 2: theme
 
@@ -237,15 +271,27 @@ webterm/
     themes/      tomorrow-night.css solarized-dark.css ...
     skin/        crt.css
   dist/          built single-file bundles (webterm.css, webterm.min.css)
+  fonts/         bundled full-coverage woff2 + webterm-fonts.css,
+                 metrics.json (font-table limits)
   test/
     metrics.html         font calibration page (§4.7)
+    metrics.spec.js      node:test + Playwright: seams, ch/lh exactness
+    calibration.json     last calibration sweep (source of each K)
     components.html      visual kitchen-sink
     *.spec.js            Playwright: assert computed widths are integer ch
   tools/
+    font-limits.py       font tables → fonts/metrics.json
+    calibrate.js         empirical line-height sweep → test/calibration.json
     gen-theme.*          (later) color scheme → themes/*.css
 ```
 
 ## 8. Open questions / tabled
+
+- [ ] Calibration is Chromium-only. Firefox and Safari round font metrics
+      differently; measure them (Playwright firefox/webkit) before v1.
+- [ ] Horizontal seams at fractional cell widths (§4.7): progress fill via
+      CSS background instead of `█` runs, or snap `--wt-font-size` so
+      `1ch` is whole px (JetBrains Mono: multiples of 5px; Iosevka: even px)?
 
 - [ ] Theme generator: language (Python vs Node) and canonical input format.
 - [ ] Fractional ch from flex distribution: accept or enforce integers?
@@ -256,7 +302,7 @@ webterm/
 
 ## 9. Milestones
 
-1. **Metrics** — `test/metrics.html`, calibrate 3 fonts, lock `line-height`.
+1. **Metrics** — `test/metrics.html`, calibrate 3 fonts, lock `line-height`. ✅
 2. **Grid core** — reset, tokens, `.screen`, `.row/.col`, `.box` (style 1).
 3. **Type + table** — typography scale, table, `hr`, lists.
 4. **Forms + components** — buttons, inputs, progress, alerts, nav, status.

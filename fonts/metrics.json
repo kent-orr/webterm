@@ -1,0 +1,89 @@
+{
+  "dejavu-sans-mono": {
+    "file": "fonts/dejavu-sans-mono/dejavu-sans-mono-400.woff2",
+    "version": "Version 2.37",
+    "unitsPerEm": 2048,
+    "advance": 1233,
+    "advanceEm": 0.602051,
+    "useTypoMetrics": false,
+    "limits": {
+      "hhea": {
+        "ascent": 1901,
+        "descent": 483,
+        "lines": 1.18359,
+        "blocks": 1.18359
+      },
+      "typo": {
+        "ascent": 1556,
+        "descent": 492,
+        "lines": 1.01953,
+        "blocks": 1.01953
+      },
+      "win": {
+        "ascent": 1901,
+        "descent": 483,
+        "lines": 1.18359,
+        "blocks": 1.18359
+      }
+    },
+    "expected": "hhea"
+  },
+  "iosevka": {
+    "file": "fonts/iosevka/iosevka-400.woff2",
+    "version": "Version 22.1.2; ttfautohint (v1.8.4)",
+    "unitsPerEm": 1000,
+    "advance": 500,
+    "advanceEm": 0.5,
+    "useTypoMetrics": true,
+    "limits": {
+      "hhea": {
+        "ascent": 965,
+        "descent": 215,
+        "lines": 1.23,
+        "blocks": 1.18
+      },
+      "typo": {
+        "ascent": 965,
+        "descent": 285,
+        "lines": 1.3,
+        "blocks": 1.25
+      },
+      "win": {
+        "ascent": 965,
+        "descent": 285,
+        "lines": 1.3,
+        "blocks": 1.25
+      }
+    },
+    "expected": "typo"
+  },
+  "jetbrains-mono": {
+    "file": "fonts/jetbrains-mono/jetbrains-mono-400.woff2",
+    "version": "Version 2.304; ttfautohint (v1.8.4.7-5d5b)",
+    "unitsPerEm": 1000,
+    "advance": 600,
+    "advanceEm": 0.6,
+    "useTypoMetrics": true,
+    "limits": {
+      "hhea": {
+        "ascent": 1020,
+        "descent": 300,
+        "lines": 1.52,
+        "blocks": 1.32
+      },
+      "typo": {
+        "ascent": 1020,
+        "descent": 300,
+        "lines": 1.52,
+        "blocks": 1.32
+      },
+      "win": {
+        "ascent": 1020,
+        "descent": 300,
+        "lines": 1.52,
+        "blocks": 1.32
+      }
+    },
+    "expected": "typo"
+  }
+}
