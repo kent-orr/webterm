@@ -1,0 +1,38 @@
+/* Green phosphor. A monochrome CRT (P1 phosphor), not a published scheme.
+ *
+ * A monochrome display has one phosphor, so an ANSI color arrives as a beam
+ * intensity, not a hue. Each slot's intensity here is the relative luminance
+ * of the standard xterm color for that slot, rank-ordered and spread over the
+ * usable range of the gun: blue is the dimmest of 1-6 and yellow the
+ * brightest, as on a composite monochrome monitor. Interpolation is in linear
+ * light, which is what beam current is linear in. Pure luminance was not
+ * usable — it leaves blue at 1.2:1 — so the range is compressed, not clipped.
+ *
+ * Consequence: an error box and an info box differ in intensity but not in
+ * hue, which is exactly what the hardware did.
+ */
+:root {
+  --bg: #0b160b;
+  --fg: #33ff33;
+  --cursor: #33ff33;
+  --cursor-fg: #0b160b;
+  --sel: #167216;
+  --sel-fg: #33ff33;
+
+  --c0: #112611;
+  --c1: #22af22;
+  --c2: #2ad62a;
+  --c3: #31f631;
+  --c4: #1d961d;
+  --c5: #26c426;
+  --c6: #2ee72e;
+  --c7: #31f731;
+  --c8: #198319;
+  --c9: #29cf29;
+  --c10: #30f030;
+  --c11: #33ff33;
+  --c12: #25bc25;
+  --c13: #2ce12c;
+  --c14: #33ff33;
+  --c15: #33ff33;
+}

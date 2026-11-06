@@ -1,0 +1,32 @@
+/* Dracula. Zeno Rocha, draculatheme.com */
+:root {
+  --bg: #282a36;
+  --fg: #f8f8f2;
+  --cursor: #f8f8f2;
+  --cursor-fg: #282a36;
+  --sel: #44475a;
+  --sel-fg: #f8f8f2;
+
+  --c0: #21222c;
+  --c1: #ff5555;
+  --c2: #50fa7b;
+  --c3: #f1fa8c;
+  --c4: #bd93f9;
+  --c5: #ff79c6;
+  --c6: #8be9fd;
+  --c7: #f8f8f2;
+  --c8: #6272a4;
+  --c9: #ff6e6e;
+  --c10: #69ff94;
+  --c11: #ffffa5;
+  --c12: #d6acff;
+  --c13: #ff92df;
+  --c14: #a4ffff;
+  --c15: #ffffff;
+}
+
+/* Dracula's slot 8 is its comment color and reads correctly as dim; the box
+   edges want a touch more than that against such a dark ground. */
+:root {
+  --border: #6272a4;
+}

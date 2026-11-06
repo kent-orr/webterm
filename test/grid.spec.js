@@ -118,19 +118,6 @@ describe('source', () => {
     assert.deepEqual(bad, []);
   });
 
-  test('every theme defines the same variable contract (PLAN §5.1)', () => {
-    const names = (css) => new Set([...stripComments(css).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
-    const themes = cssFiles(path.join(SRC, 'themes'));
-    assert.ok(themes.length >= 3, 'expected at least three themes');
-    const required = [
-      '--bg', '--fg', '--cursor', '--cursor-fg', '--sel', '--sel-fg',
-      ...Array.from({ length: 16 }, (_, i) => `--c${i}`),
-    ];
-    for (const [name, css] of themes) {
-      const have = names(css);
-      assert.deepEqual(required.filter((v) => !have.has(v)), [], `${name} is missing variables`);
-    }
-  });
 });
 
 describe('cell grid', () => {

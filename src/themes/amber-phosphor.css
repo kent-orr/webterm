@@ -1,0 +1,29 @@
+/* Amber phosphor. A monochrome CRT (P3 phosphor), not a published scheme.
+ * Same derivation as green-phosphor.css: ANSI slots become beam intensities
+ * ranked by the luminance of the corresponding xterm color.
+ */
+:root {
+  --bg: #150e00;
+  --fg: #ffb000;
+  --cursor: #ffb000;
+  --cursor-fg: #150e00;
+  --sel: #714c00;
+  --sel-fg: #ffb000;
+
+  --c0: #241900;
+  --c1: #af7800;
+  --c2: #d69300;
+  --c3: #f6aa00;
+  --c4: #966600;
+  --c5: #c48600;
+  --c6: #e79f00;
+  --c7: #f7aa00;
+  --c8: #835900;
+  --c9: #cf8e00;
+  --c10: #f0a600;
+  --c11: #ffb000;
+  --c12: #bc8100;
+  --c13: #e19b00;
+  --c14: #ffb000;
+  --c15: #ffb000;
+}

@@ -203,17 +203,26 @@ Findings:
 - **Chromium ignores USE_TYPO_METRICS for Iosevka**: measured limits match
   the hhea prediction, not typo. Theory in `fonts/metrics.json`
   (`tools/font-limits.py`) is a guide; the empirical sweep is authoritative.
-- **`1ch` is exact for layout.** `Nch` equals N glyph advances within one
-  LayoutUnit (1/64px) at every size, regular and bold; no drift with N.
+- **`1ch` is a whole px, and is not the font's em advance.** Chromium
+  153.0.8010.12 here lays monospace text out with whole-px advances, so
+  `1ch = round(advanceEm × font-size)` at every size — 16px JetBrains Mono
+  gives a 10px cell, not 9.6px. The grid is still exact (`Nch` is N equal
+  integer cells, regular and bold, no drift with N), but the cell is not the
+  advance the font tables predict, which is what `test/metrics.spec.js`
+  asserts today. See §8.
 - **Google Fonts / Fontsource JetBrains Mono lacks U+2500–259F.** Borders
   silently fall back to another font. We bundle the official v2.304 build
   (`fonts/`).
-- **Horizontal seams are a font/size property, not line-height.** When a cell
-  is a fractional number of device px, glyphs that end exactly on the advance
-  (`█` in all three fonts; `─`/`┼` in Iosevka) leave a faint lighter column
-  (up to ~35% lighter for `█`). Integer device-px cells are seamless (tested).
-  Consequence for §4.6 progress bars: do not rely on runs of `█` at
-  fractional cell widths; see §8.
+- **Horizontal seams are a font/size property, not line-height.** Glyphs that
+  end exactly on the advance (`█` in all three fonts; `─`/`┼` in Iosevka)
+  leave a faint lighter column at the cell boundary. The cause is the
+  quantization above, not fractional cells: the glyph is *painted* at its
+  natural em advance inside a cell rounded up to a whole px, so the
+  difference stays unpainted. Where `advanceEm × size` is already an integer
+  the line glyphs come out clean (JetBrains Mono at 20px: 0.001 loss); where
+  it is not, everything seams (same font at 16px: 0.06 for the line glyphs,
+  0.288 for `█`). `█` keeps a ~0.09 loss even on an exact cell.
+  Consequence for §4.6 progress bars: do not rely on runs of `█`; see §8.
 
 Re-run after changing a font file or Chromium version:
 `npm run font-limits && npm run calibrate`, then copy each K into
@@ -245,10 +254,39 @@ Semantic aliases layered on top so components read clearly:
 --accent: var(--c5);  --link: var(--c4);
 ```
 
-### 5.2 Default themes to ship
+### 5.2 Default themes to ship — done, milestone 5
 
 Tomorrow Night, Solarized Dark, Solarized Light, Gruvbox Dark, Dracula,
-Nord, plus a plain "green phosphor" and "amber phosphor".
+Nord, plus a plain "green phosphor" and "amber phosphor". All eight are in
+`src/themes/`, selectable from `test/components.html`.
+
+The six published schemes are transcribed as their authors define them. The
+two phosphor themes are ours: a monochrome CRT has one phosphor, so an ANSI
+color arrives as a beam intensity and not a hue. Each slot's intensity is the
+relative luminance of the corresponding xterm color, rank-ordered and spread
+over the usable range of the gun (pure luminance leaves blue at 1.2:1), mixed
+in linear light — which is what beam current is linear in. An error box and
+an info box therefore differ in intensity but not in hue, as on the hardware.
+
+`test/themes.spec.js` lints all eight without a browser, in two halves:
+
+- *contract* — each declares exactly the §5.1 set, as hex, under `:root`
+  only, and sets no property that is not a custom property. That is what
+  makes a theme swappable by one `<link>` and what the generator (§5.3) has
+  to emit.
+- *legibility* — WCAG ratios for the pairs the grid layer actually paints.
+  Floors are set at what the hand-transcribed schemes meet, not at round
+  numbers: 4.5:1 for body text and for inverse video (the §2.3 hierarchy
+  mechanism, and the pair most at risk on a light scheme), 4:1 for the
+  cursor and selection pairs, 2.4:1 for dim text and box edges — the faint
+  attribute is meant to recede — and 2.5:1 for the semantic foregrounds.
+
+Every floor exists because a raw ANSI slot fails it somewhere. Dim is `--c8`,
+and in Tomorrow Night and Solarized Dark `--c8` *is* the background, so the
+faint attribute would be invisible; Nord's `--c8` sits at 2.0:1. Those three
+and Gruvbox override `--muted`/`--border`, and the suite is what says they
+must. The phosphor ramps need no override: the dim slot is well behaved by
+construction.
 
 ### 5.3 Theme generator (tabled, see §8)
 
@@ -290,6 +328,9 @@ webterm/
     metrics.spec.js      node:test + Playwright: seams, ch/lh exactness
     calibration.json     last calibration sweep (source of each K)
     components.html      visual kitchen-sink
+    themes.spec.js       theme contract + contrast lint (no browser)
+    lib/color.js         hex -> luminance -> WCAG contrast
+    lib/theme.js         theme file -> resolved variable map
     *.spec.js            Playwright: assert computed widths are integer ch
   tools/
     font-limits.py       font tables → fonts/metrics.json
@@ -301,9 +342,28 @@ webterm/
 
 - [ ] Calibration is Chromium-only. Firefox and Safari round font metrics
       differently; measure them (Playwright firefox/webkit) before v1.
-- [ ] Horizontal seams at fractional cell widths (§4.7): progress fill via
-      CSS background instead of `█` runs, or snap `--wt-font-size` so
-      `1ch` is whole px (JetBrains Mono: multiples of 5px; Iosevka: even px)?
+- [ ] **Horizontal seams, and the two metrics tests they fail (§4.7).**
+      `1ch` is already a whole px at every size, so "snap `--wt-font-size` so
+      `1ch` is whole px" is not the fix — the seam comes from the gap between
+      the painted em advance and the rounded cell. What is left:
+      - `--wt-font-size: 16px` gives JetBrains Mono a 10px cell against a
+        9.6px advance, its worst case. A size where `advanceEm × size` is an
+        integer (15px, 20px, 25px for JetBrains Mono; even px for Iosevka)
+        is seam-free for the line glyphs. Changing the default size is a
+        framework-wide decision, so it is parked here rather than taken.
+      - `test/metrics.spec.js` asserts `ch80 == 80 × advanceEm × size` from
+        the font tables and so fails at every size where that product is not
+        an integer (100 failures, deterministic). The assertion should hold
+        the grid property — N equal whole-px cells, no drift — not the
+        em-advance prediction, which Chromium does not use.
+      - the horizontal seam test picks its sizes from the same prediction,
+        so it skips most sizes and runs exactly where it fails.
+      - whether this is Chromium 153 or a missing subpixel-positioning
+        setting in this environment is not yet established; it decides
+        whether the fix belongs in the spec or in the harness. Firefox and
+        WebKit (first item above) will answer part of it.
+      - progress fill via a CSS background instead of `█` runs, which is
+        seam-free regardless.
 
 - [ ] Theme generator: language (Python vs Node) and canonical input format.
 - [ ] Fractional ch from flex distribution: accept or enforce integers?
@@ -318,9 +378,9 @@ webterm/
 2. **Grid core** — reset, tokens, `.screen`, `.row/.col`, `.box` (style 1). ✅
 3. **Type + table** — typography scale, table, `hr`, lists. ✅
 4. **Forms + components** — buttons, inputs, progress, alerts, nav, status. ✅
-5. **Themes** — variable contract frozen; hand-write 8 themes.
-   3 of 8 written (Tomorrow Night, Gruvbox Dark, Solarized Light); the
-   contract is frozen and `test/grid.spec.js` lints every theme against it.
+5. **Themes** — variable contract frozen; hand-write 8 themes. ✅
+   All 8 written; `test/themes.spec.js` lints each one for the contract and
+   for the contrast of every pair the grid layer paints (§5.2).
 6. **Tests** — Playwright checks: every `.box` edge lands on an integer
    `ch`/`lh` boundary; borders have no sub-cell gaps (pixel diff).
 7. **Skin** — `.crt`.
