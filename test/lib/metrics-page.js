@@ -5,10 +5,23 @@ const { decode, analyze } = require('./seams');
 
 // Opens test/metrics.html once per device pixel ratio and lets callers
 // re-render with new settings without reloading.
+//
+// One page per DPR is shared by every caller, and a caller's work is "change
+// the page's font/size/offset, then measure or screenshot it". node:test runs
+// the subtests of a describe() block concurrently, so those steps interleave
+// and a test reads a page another test has just re-rendered. Every entry
+// point therefore runs inside a queue: apply and read are one atomic unit.
 async function openMetrics({ dprs = [1, 2] } = {}) {
   const server = await startServer();
   const browser = await chromium.launch();
   const pages = new Map();
+  // Serializes apply+read against the shared pages.
+  let queue = Promise.resolve();
+  const atomic = (fn) => {
+    const run = queue.then(fn, fn);
+    queue = run.then(() => undefined, () => undefined);
+    return run;
+  };
   for (const dpr of dprs) {
     const ctx = await browser.newContext({ deviceScaleFactor: dpr, viewport: { width: 1280, height: 1600 } });
     const page = await ctx.newPage();
@@ -17,7 +30,11 @@ async function openMetrics({ dprs = [1, 2] } = {}) {
     pages.set(dpr, page);
   }
 
-  async function render(dpr, settings) {
+  function render(dpr, settings) {
+    return atomic(() => renderNow(dpr, settings));
+  }
+
+  async function renderNow(dpr, settings) {
     const page = pages.get(dpr);
     const m = await page.evaluate((s) => window.wtApply(s), settings);
     // Clip to the two analyzed specimens; this keeps sweeps fast.
@@ -27,8 +44,8 @@ async function openMetrics({ dprs = [1, 2] } = {}) {
     return { m, seams: analyze(decode(shot), m, dpr) };
   }
 
-  async function measure(dpr, settings) {
-    return pages.get(dpr).evaluate((s) => window.wtApply(s), settings);
+  function measure(dpr, settings) {
+    return atomic(() => pages.get(dpr).evaluate((s) => window.wtApply(s), settings));
   }
 
   async function close() {
