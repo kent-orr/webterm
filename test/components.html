@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — components</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="../src/themes/tomorrow-night.css" id="theme">
+<style>
+  /* Page chrome only. Nothing here sets a length that is not a whole cell. */
+  body { padding-bottom: 2lh; }
+  .screen { padding: 1lh 1ch; }
+  .gallery { display: flex; flex-wrap: wrap; gap: 1lh 1ch; }
+  .gallery > * { flex: 0 0 36ch; }
+</style>
+</head>
+<body>
+
+<div class="screen">
+
+  <h1>webterm</h1>
+
+  <nav class="nav mt-1">
+    <a href="#grid" class="active">grid</a>
+    <a href="#boxes">boxes</a>
+    <a href="#type">type</a>
+    <a href="#table">table</a>
+    <a href="#forms">forms</a>
+    <a href="#components">components</a>
+  </nav>
+
+  <p class="mt-1 dim">Every element below occupies a whole number of character
+  cells. Resize the window: the screen snaps to a column boundary.</p>
+
+  <div class="row mt-1">
+
+    <!-- ── sidebar ─────────────────────────────────────────────── -->
+    <div class="col-24">
+      <div class="box box-tight">
+        <span class="box-edge"></span>
+        <span class="box-title">Settings</span>
+        <div class="menu">
+          <span class="active">font</span>
+        </div>
+        <div class="pad" style="padding: 0 1ch;">
+          <div class="select select-16 mt-1">
+            <select id="font">
+              <option value="font-jetbrains-mono">JetBrains Mono</option>
+              <option value="font-iosevka">Iosevka</option>
+              <option value="font-dejavu-sans-mono">DejaVu Sans Mono</option>
+            </select>
+          </div>
+        </div>
+        <div class="box-divide mt-1"></div>
+        <div class="menu">
+          <span class="active">theme</span>
+        </div>
+        <div style="padding: 0 1ch;">
+          <div class="select select-16 mt-1">
+            <select id="theme-pick">
+              <option value="tomorrow-night">Tomorrow Night</option>
+              <option value="gruvbox-dark">Gruvbox Dark</option>
+              <option value="solarized-light">Solarized Light</option>
+            </select>
+          </div>
+        </div>
+        <div class="box-divide mt-1"></div>
+        <dl class="kv mt-1">
+          <dt>cell</dt><dd id="m-cell">—</dd>
+          <dt>row</dt><dd id="m-row">—</dd>
+          <dt>cols</dt><dd id="m-cols">—</dd>
+          <dt>rows</dt><dd id="m-rows">—</dd>
+        </dl>
+      </div>
+
+      <div class="box mt-1" id="grid">
+        <span class="box-edge"></span>
+        <span class="box-title">Palette</span>
+        <div class="pre"><span class="c0">██</span><span class="c1">██</span><span class="c2">██</span><span class="c3">██</span><span class="c4">██</span><span class="c5">██</span><span class="c6">██</span><span class="c7">██</span>
+<span class="c8">██</span><span class="c9">██</span><span class="c10">██</span><span class="c11">██</span><span class="c12">██</span><span class="c13">██</span><span class="c14">██</span><span class="c15">██</span></div>
+      </div>
+    </div>
+
+    <!-- ── main ────────────────────────────────────────────────── -->
+    <div class="col">
+
+      <div class="box" id="boxes">
+        <span class="box-edge"></span>
+        <span class="box-title">Box styles</span>
+        <p class="dim">Four glyph runs, one per edge, each clipped to the box.
+        The corners are glyphs too.</p>
+        <div class="gallery mt-1">
+          <div class="box">
+            <span class="box-edge"></span>
+            <span class="box-title">.box</span>
+            <p>light — the default</p>
+          </div>
+          <div class="box box-double">
+            <span class="box-edge"></span>
+            <span class="box-title">.box-double</span>
+            <p>double</p>
+          </div>
+          <div class="box box-round">
+            <span class="box-edge"></span>
+            <span class="box-title">.box-round</span>
+            <p>rounded corners</p>
+          </div>
+          <div class="box box-heavy">
+            <span class="box-edge"></span>
+            <span class="box-title">.box-heavy</span>
+            <p>heavy</p>
+          </div>
+          <div class="box box-ascii">
+            <span class="box-edge"></span>
+            <span class="box-title">.box-ascii</span>
+            <p>ascii only</p>
+          </div>
+          <div class="box box-fill">
+            <span class="box-edge"></span>
+            <span class="box-title">.box-fill</span>
+            <p>filled interior</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="box mt-1" id="type">
+        <span class="box-edge"></span>
+        <span class="box-title">Type</span>
+        <p class="dim">One font, one size, one line-height. Hierarchy is bold,
+        dim, inverse, underline, color and uppercase — never size (rule 3).</p>
+
+        <h2 class="mt-1">h2 — bold over a double rule</h2>
+        <p>Body text. <strong>Bold</strong>, <em>emphasis as underline</em>
+        (the bundled fonts ship upright only), <code>inline code</code>,
+        <a href="#type">a link</a>, <span class="dim">dim</span>,
+        <span class="inverse">inverse</span>, <kbd>^C</kbd>.</p>
+
+        <h3>h3 — bold over a light rule</h3>
+        <h4>h4 — bold</h4>
+        <h6>h6 — dim uppercase</h6>
+
+        <ul class="mt-1">
+          <li>Unordered items put the marker in its own cell, so a line that
+          wraps hangs under the text rather than under the bullet.</li>
+          <li>Nested:
+            <ul>
+              <li>two cells deeper</li>
+            </ul>
+          </li>
+        </ul>
+
+        <ol class="mt-1">
+          <li>Ordered markers are right-aligned in a four-cell gutter.</li>
+          <li>Second.</li>
+        </ol>
+
+        <blockquote class="mt-1">A quote is marked by a glyph column, not a
+        px border.</blockquote>
+
+        <hr>
+
+        <pre class="mt-1">  .box {
+    padding: 1lh 2ch;   /* one border row, one border + gutter cell */
+  }</pre>
+      </div>
+
+      <div class="box box-tight mt-1" id="table">
+        <span class="box-edge"></span>
+        <span class="box-title">Table</span>
+        <table class="table-zebra">
+          <colgroup>
+            <col style="width: 12ch">
+            <col style="width: 12ch">
+            <col style="width: 10ch">
+            <col style="width: 14ch">
+          </colgroup>
+          <thead>
+            <tr><th>Host</th><th>Role</th><th class="num">Load</th><th>State</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>alpha</td><td>primary</td><td class="num">0.41</td><td><span class="fg-ok">ok</span></td></tr>
+            <tr><td>bravo</td><td>replica</td><td class="num">1.07</td><td><span class="fg-ok">ok</span></td></tr>
+            <tr><td>charlie</td><td>replica</td><td class="num">3.92</td><td><span class="fg-warn">degraded</span></td></tr>
+            <tr><td>delta</td><td>witness</td><td class="num">—</td><td><span class="fg-error">down</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="row mt-1">
+        <div class="col">
+          <div class="box" id="forms">
+            <span class="box-edge"></span>
+            <span class="box-title">Forms</span>
+            <div class="form-row">
+              <label class="form-label" for="f-host">host</label>
+              <input class="field" id="f-host" value="alpha.internal">
+            </div>
+            <div class="form-row">
+              <label class="form-label" for="f-port">port</label>
+              <input class="field field-8" id="f-port" value="5432">
+            </div>
+            <div class="form-row">
+              <span class="form-label">mode</span>
+              <span>
+                <label><input type="radio" name="mode" checked> read</label>
+                <label><input type="radio" name="mode"> write</label>
+              </span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">options</span>
+              <span>
+                <label><input type="checkbox" checked> tls</label>
+                <label><input type="checkbox"> verbose</label>
+                <label><input type="checkbox" disabled> legacy</label>
+              </span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">driver</span>
+              <span class="select select-16">
+                <select>
+                  <option>postgres</option>
+                  <option>sqlite</option>
+                </select>
+              </span>
+            </div>
+            <div class="form-row">
+              <span class="form-label"></span>
+              <span>
+                <button class="btn btn-ok">Connect</button>
+                <button class="btn">Cancel</button>
+                <button class="btn" disabled>Reset</button>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-40">
+          <div class="box" id="components">
+            <span class="box-edge"></span>
+            <span class="box-title">Components</span>
+            <p><span class="badge">BADGE</span>
+               <span class="badge badge-ok">OK</span>
+               <span class="badge badge-warn">WARN</span>
+               <span class="badge badge-error">FAIL</span></p>
+            <div class="mt-1">
+              <div><span class="progress" style="--cells: 24; --fill: 21"><span class="bar"></span></span> 88%</div>
+              <div><span class="progress progress-warn" style="--cells: 24; --fill: 13"><span class="bar"></span></span> 54%</div>
+              <div><span class="progress progress-error" style="--cells: 24; --fill: 2"><span class="bar"></span></span> 09%</div>
+            </div>
+          </div>
+
+          <div class="box alert alert-ok mt-1">
+            <span class="box-edge"></span>
+            <span class="box-title">ok</span>
+            <p>Migration applied in 1.2s.</p>
+          </div>
+          <div class="box alert alert-warn mt-1">
+            <span class="box-edge"></span>
+            <span class="box-title">warn</span>
+            <p>Replica charlie is 4 minutes behind.</p>
+          </div>
+          <div class="box alert alert-error mt-1">
+            <span class="box-edge"></span>
+            <span class="box-title">error</span>
+            <p>Host delta did not answer.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="mt-2 dim">Milestones 2 and 3 of PLAN.md. Borders cover 256 columns
+  and 128 rows per box; wider or taller boxes lose the tail of the run.</p>
+
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm</span>
+  <span class="spacer"></span>
+  <span id="s-font">—</span>
+  <span id="s-geom">—</span>
+</div>
+
+<script>
+// Demo page only: the framework itself is CSS with no script.
+const $ = (s) => document.querySelector(s);
+
+function cellSize() {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;width:100ch;height:100lh';
+  document.body.append(probe);
+  const r = probe.getBoundingClientRect();
+  probe.remove();
+  return { ch: r.width / 100, lh: r.height / 100 };
+}
+
+function readout() {
+  const { ch, lh } = cellSize();
+  const screen = $('.screen').getBoundingClientRect();
+  $('#m-cell').textContent = ch.toFixed(3) + 'px';
+  $('#m-row').textContent = lh.toFixed(0) + 'px';
+  $('#m-cols').textContent = Math.round(screen.width / ch);
+  $('#m-rows').textContent = Math.round(window.innerHeight / lh);
+  $('#s-font').textContent = getComputedStyle(document.documentElement)
+    .fontFamily.split(',')[0].replace(/"/g, '');
+  $('#s-geom').textContent = Math.round(screen.width / ch) + '×' +
+    Math.round(window.innerHeight / lh);
+}
+
+$('#font').addEventListener('change', async (e) => {
+  document.documentElement.className = e.target.value;
+  await document.fonts.ready;
+  readout();
+});
+
+$('#theme-pick').addEventListener('change', (e) => {
+  $('#theme').href = '../src/themes/' + e.target.value + '.css';
+});
+
+addEventListener('resize', readout);
+document.fonts.ready.then(() => {
+  readout();
+  document.documentElement.dataset.ready = '1';
+});
+</script>
+</body>
+</html>

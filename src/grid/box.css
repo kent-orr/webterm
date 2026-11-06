@@ -1,0 +1,197 @@
+/*
+ * webterm boxes (PLAN §4.4).
+ *
+ * A box border is four glyph runs, one per edge, each clipped to the box by
+ * `overflow: hidden` (see glyphs.css). Clipping eats the far end of a run, so
+ * the four edges are arranged cyclically and each one owns the corner at the
+ * end it is anchored to:
+ *
+ *   ┌─────────▶    top edge: anchored left,   owns ┌
+ *   ▲        │     right edge: anchored top,   owns ┐
+ *   │        ▼     bottom edge: anchored right, owns ┘
+ *   ◀─────────┘    left edge: anchored bottom,  owns └
+ *
+ * Each edge is confined to a strip that stops one cell short of the next
+ * edge's corner, so the four strips are disjoint: no two glyphs are ever
+ * painted in the same cell, and no masking is needed.
+ *
+ * CSS gives one element two pseudo-elements, and a box needs four strips, so
+ * a box carries one empty child that supplies the other two:
+ *
+ *   <div class="box">
+ *     <span class="box-edge"></span>
+ *     <span class="box-title">Title</span>   <!-- optional -->
+ *     ...content...
+ *   </div>
+ *
+ * Content stays a direct child of .box, so .box can also be a flex or grid
+ * container. Without .box-edge a box draws only its top and left edges, which
+ * is a visible reminder rather than a silent misalignment.
+ */
+
+.box {
+  position: relative;
+
+  /* 1 row of border + 1 cell of border and 1 cell of gutter either side. */
+  padding: 1lh 2ch;
+  --wt-gutter: 1ch;
+
+  --wt-tl: "┌";
+  --wt-tr: "┐";
+  --wt-bl: "└";
+  --wt-br: "┘";
+  --wt-h: var(--wt-run-dash);
+  --wt-v: var(--wt-col-light);
+}
+
+.box-double {
+  --wt-tl: "╔";
+  --wt-tr: "╗";
+  --wt-bl: "╚";
+  --wt-br: "╝";
+  --wt-h: var(--wt-run-double);
+  --wt-v: var(--wt-col-double);
+}
+
+.box-round {
+  --wt-tl: "╭";
+  --wt-tr: "╮";
+  --wt-bl: "╰";
+  --wt-br: "╯";
+}
+
+.box-heavy {
+  --wt-tl: "┏";
+  --wt-tr: "┓";
+  --wt-bl: "┗";
+  --wt-br: "┛";
+  --wt-h: var(--wt-run-heavy);
+  --wt-v: var(--wt-col-heavy);
+}
+
+/* Rule 5: an ASCII-only style is available, but is not the default. */
+.box-ascii {
+  --wt-tl: "+";
+  --wt-tr: "+";
+  --wt-bl: "+";
+  --wt-br: "+";
+  --wt-h: var(--wt-run-ascii);
+  --wt-v: var(--wt-col-ascii);
+}
+
+.box > .box-edge {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.box::before,
+.box::after,
+.box > .box-edge::before,
+.box > .box-edge::after {
+  position: absolute;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--border);
+
+  /* The border never inherits bold from the content it wraps. */
+  font-weight: 400;
+  text-decoration: none;
+  text-transform: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Top edge: left-anchored, stops before the top-right cell. */
+.box::before {
+  content: var(--wt-tl) var(--wt-h) var(--wt-h) var(--wt-h) var(--wt-h);
+  top: 0;
+  left: 0;
+  right: 1ch;
+  height: 1lh;
+}
+
+/* Left edge: bottom-anchored, starts below the top-left cell. A column flex
+   box with justify-content: flex-end puts the end of the run at the bottom and
+   lets the head of it overflow upward, where the strip clips it. */
+.box::after {
+  content: var(--wt-v) var(--wt-v) var(--wt-bl);
+  top: 1lh;
+  bottom: 0;
+  left: 0;
+  width: 1ch;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+/* Right edge: top-anchored, stops above the bottom-right cell. */
+.box > .box-edge::before {
+  content: var(--wt-tr) "\A" var(--wt-v) var(--wt-v);
+  top: 0;
+  bottom: 1lh;
+  right: 0;
+  width: 1ch;
+}
+
+/* Bottom edge: right-anchored, starts after the bottom-left cell. A line
+   longer than the strip overflows leftward when right-aligned. */
+.box > .box-edge::after {
+  content: var(--wt-h) var(--wt-h) var(--wt-h) var(--wt-h) var(--wt-br);
+  bottom: 0;
+  left: 1ch;
+  right: 0;
+  height: 1lh;
+  text-align: right;
+}
+
+/*
+ * A title sits in the top border row: ┌─ Title ─────┐
+ *
+ * It is a real element, not part of the top run, so it can be bold or colored
+ * while the border stays dim. Its background hides the run underneath, and its
+ * padding keeps a blank cell either side of the label.
+ */
+.box-title {
+  position: absolute;
+  top: 0;
+  left: 2ch;
+  height: 1lh;
+  padding: 0 1ch;
+  background: var(--box-bg, var(--bg));
+  color: var(--fg);
+  font-weight: 700;
+  white-space: pre;
+}
+
+.box-title-right {
+  left: auto;
+  right: 2ch;
+}
+
+/* A box with a filled interior; --box-bg keeps .box-title masking correct. */
+.box-fill {
+  --box-bg: var(--c0);
+  background: var(--c0);
+}
+
+/* Boxes with no gutter, for content that is already cell-aligned (tables). */
+.box-tight {
+  padding: 1lh 1ch;
+  --wt-gutter: 0ch;
+}
+
+/* A horizontal divider spanning the box interior. It reaches back across the
+   gutter but never into the border cells, which the side runs own. */
+.box-divide {
+  position: relative;
+  height: 1lh;
+  margin: 0 calc(-1 * var(--wt-gutter, 1ch));
+  overflow: hidden;
+  white-space: pre;
+  color: var(--border);
+}
+
+.box-divide::before {
+  content: var(--wt-h) var(--wt-h) var(--wt-h) var(--wt-h);
+}

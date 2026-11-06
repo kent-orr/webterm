@@ -1,2 +1,11 @@
 node_modules/
 test-results/
+
+# R project cruft — never belongs in this repo
+.Rproj.user/
+*.Rproj
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+renv/

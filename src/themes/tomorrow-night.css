@@ -1,0 +1,32 @@
+/* Tomorrow Night. Chris Kempson, github.com/chriskempson/tomorrow-theme */
+:root {
+  --bg: #1d1f21;
+  --fg: #c5c8c6;
+  --cursor: #c5c8c6;
+  --cursor-fg: #1d1f21;
+  --sel: #373b41;
+  --sel-fg: #c5c8c6;
+
+  --c0: #282a2e;
+  --c1: #a54242;
+  --c2: #8c9440;
+  --c3: #de935f;
+  --c4: #5f819d;
+  --c5: #85678f;
+  --c6: #5e8d87;
+  --c7: #707880;
+  --c8: #373b41;
+  --c9: #cc6666;
+  --c10: #b5bd68;
+  --c11: #f0c674;
+  --c12: #81a2be;
+  --c13: #b294bb;
+  --c14: #8abeb7;
+  --c15: #c5c8c6;
+}
+
+/* The dim slot has to stay legible against --bg; c8 is too dark here. */
+:root {
+  --muted: #707880;
+  --border: #5a5f66;
+}

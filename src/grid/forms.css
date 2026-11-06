@@ -1,0 +1,171 @@
+/*
+ * webterm form controls (PLAN §4.6).
+ *
+ * Every control is text: its width is however many cells its glyphs take, so
+ * nothing needs a measured px size. Focus is inverse video (rule 3).
+ */
+
+/* [ OK ] — the brackets are glyphs, so the button is exactly len+4 cells. */
+.btn {
+  display: inline-block;
+  height: 1lh;
+  color: var(--fg);
+  white-space: pre;
+
+  /* Baseline alignment would let an inline-block's descenders grow the line
+     box past 1lh; every inline control aligns to the top of its row instead. */
+  vertical-align: top;
+}
+
+.btn::before { content: "[ "; }
+.btn::after { content: " ]"; }
+
+.btn:hover,
+.btn:focus-visible {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.btn:active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  color: var(--muted);
+  cursor: default;
+}
+
+.btn[disabled]:hover,
+.btn[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
+.btn-ok { color: var(--ok); }
+.btn-error { color: var(--error); }
+
+.btn-ok:hover, .btn-ok:focus-visible { background: var(--ok); color: var(--bg); }
+.btn-error:hover, .btn-error:focus-visible { background: var(--error); color: var(--bg); }
+
+/* Text fields are a dim fill N cells wide, with a block caret. */
+.field {
+  display: inline-block;
+  vertical-align: top;
+  width: 20ch;
+  height: 1lh;
+  padding: 0 1ch;
+  background: var(--c0);
+  color: var(--fg);
+  caret-color: var(--cursor);
+  caret-shape: block;
+}
+
+.field::placeholder {
+  color: var(--muted);
+}
+
+.field:focus {
+  background: var(--sel);
+  color: var(--sel-fg);
+}
+
+textarea.field {
+  height: auto;
+  resize: none;
+  white-space: pre;
+  overflow: auto;
+}
+
+.field-8 { width: 8ch; }
+.field-12 { width: 12ch; }
+.field-16 { width: 16ch; }
+.field-24 { width: 24ch; }
+.field-32 { width: 32ch; }
+.field-full { width: 100%; }
+
+/* [x] [ ] (•) ( ) — the native control is replaced by its glyph. */
+input[type="checkbox"],
+input[type="radio"] {
+  display: inline-block;
+  width: 3ch;
+  height: 1lh;
+  vertical-align: top;
+  white-space: pre;
+  cursor: pointer;
+  color: var(--fg);
+}
+
+input[type="checkbox"]::before { content: "[ ]"; }
+input[type="checkbox"]:checked::before { content: "[x]"; }
+input[type="radio"]::before { content: "( )"; }
+input[type="radio"]:checked::before { content: "(•)"; }
+
+input[type="checkbox"]:focus-visible::before,
+input[type="radio"]:focus-visible::before {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+input[type="checkbox"][disabled],
+input[type="radio"][disabled] {
+  color: var(--muted);
+  cursor: default;
+}
+
+label {
+  cursor: pointer;
+}
+
+/* [ value ▾ ] */
+.select {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  height: 1lh;
+  background: var(--c0);
+}
+
+.select > select {
+  display: block;
+  width: 100%;
+  height: 1lh;
+  padding: 0 4ch 0 1ch;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.select::after {
+  content: "▾";
+  position: absolute;
+  top: 0;
+  right: 1ch;
+  width: 1ch;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.select:focus-within {
+  background: var(--sel);
+  color: var(--sel-fg);
+}
+
+.select-16 { width: 16ch; }
+.select-24 { width: 24ch; }
+
+/* A label column and a control column, both whole cells. */
+.form-row {
+  display: flex;
+  gap: 1ch;
+  align-items: baseline;
+}
+
+.form-row + .form-row {
+  margin-top: 1lh;
+}
+
+.form-row > .form-label {
+  flex: 0 0 16ch;
+  color: var(--muted);
+}

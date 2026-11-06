@@ -1,0 +1,215 @@
+/*
+ * webterm typography (PLAN §4.5).
+ *
+ * Rule 3: no element changes font-size. Hierarchy is bold, dim, inverse,
+ * underline, color, whitespace and uppercase — nothing else.
+ */
+
+h1 {
+  background: var(--fg);
+  color: var(--bg);
+  padding: 0 1ch;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+h2,
+h3 {
+  font-weight: 700;
+}
+
+/* Rules under headings are a glyph run clipped to the heading's width. */
+h2::after,
+h3::after {
+  display: block;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--border);
+  font-weight: 400;
+}
+
+h2::after {
+  content: var(--wt-run-double) var(--wt-run-double) var(--wt-run-double) var(--wt-run-double);
+}
+
+h3::after {
+  content: var(--wt-run-dash) var(--wt-run-dash) var(--wt-run-dash) var(--wt-run-dash);
+}
+
+h4, h5, h6 {
+  font-weight: 700;
+}
+
+h5 { color: var(--muted); }
+
+h6 {
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/* Headings own their blank row rather than a fractional margin. */
+h1, h2, h3, h4, h5, h6 {
+  margin: 1lh 0 0;
+}
+
+:is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+
+p + p,
+p + ul, p + ol, p + pre, p + table, p + blockquote,
+ul + p, ol + p, pre + p, table + p, blockquote + p {
+  margin-top: 1lh;
+}
+
+strong, b {
+  font-weight: 700;
+}
+
+/* The bundled fonts ship upright only and font-synthesis is off (rule 2), so
+   emphasis is an underline, not a faux-slanted glyph. */
+em, i, cite, var {
+  font-style: normal;
+  text-decoration: underline;
+}
+
+a:hover,
+a:focus {
+  color: var(--c12);
+}
+
+code {
+  color: var(--c3);
+}
+
+pre {
+  background: var(--c0);
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 4;
+}
+
+pre code {
+  color: inherit;
+}
+
+kbd {
+  background: var(--c8);
+  color: var(--bg);
+  padding: 0 1ch;
+}
+
+/* A full-width rule. */
+hr {
+  height: 1lh;
+  margin: 1lh 0;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--border);
+}
+
+hr::before {
+  content: var(--wt-run-dash) var(--wt-run-dash) var(--wt-run-dash) var(--wt-run-dash);
+}
+
+/* Markers live in their own cells, so wrapped lines hang under the text. */
+ul > li {
+  padding-left: 2ch;
+}
+
+ul > li::before {
+  content: "•";
+  display: inline-block;
+  width: 2ch;
+  margin-left: -2ch;
+  color: var(--muted);
+}
+
+ol {
+  counter-reset: wt-ol;
+}
+
+ol > li {
+  counter-increment: wt-ol;
+  padding-left: 4ch;
+}
+
+ol > li::before {
+  content: counter(wt-ol) ".";
+  display: inline-block;
+  width: 4ch;
+  margin-left: -4ch;
+  padding-right: 1ch;
+  text-align: right;
+  color: var(--muted);
+}
+
+/* Nested lists indent by whole cells. */
+li > ul,
+li > ol {
+  margin-left: 2ch;
+}
+
+dt {
+  font-weight: 700;
+}
+
+dd {
+  margin-left: 4ch;
+}
+
+blockquote {
+  position: relative;
+  padding-left: 2ch;
+  color: var(--muted);
+}
+
+blockquote::before {
+  content: var(--wt-col-light) var(--wt-col-light);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1ch;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--border);
+}
+
+/* Attribute helpers. These are the whole type scale (rule 3). */
+.bold { font-weight: 700; }
+.dim { color: var(--muted); }
+.uc { text-transform: uppercase; }
+.underline { text-decoration: underline; }
+.strike { text-decoration: line-through; }
+.pre { white-space: pre; }
+.nowrap { white-space: nowrap; }
+
+.inverse {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+/* The 16 ANSI slots, for pages that want to name a color directly. */
+.c0 { color: var(--c0); }
+.c1 { color: var(--c1); }
+.c2 { color: var(--c2); }
+.c3 { color: var(--c3); }
+.c4 { color: var(--c4); }
+.c5 { color: var(--c5); }
+.c6 { color: var(--c6); }
+.c7 { color: var(--c7); }
+.c8 { color: var(--c8); }
+.c9 { color: var(--c9); }
+.c10 { color: var(--c10); }
+.c11 { color: var(--c11); }
+.c12 { color: var(--c12); }
+.c13 { color: var(--c13); }
+.c14 { color: var(--c14); }
+.c15 { color: var(--c15); }
+
+.fg-error { color: var(--error); }
+.fg-ok { color: var(--ok); }
+.fg-warn { color: var(--warn); }
+.fg-info { color: var(--info); }
+.fg-accent { color: var(--accent); }

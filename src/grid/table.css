@@ -1,0 +1,107 @@
+/*
+ * webterm tables (PLAN §4.6).
+ *
+ * Cells pad by whole cells and column separators are glyphs drawn in the
+ * padding cell they own:
+ *
+ *   NAME      │ SIZE │ STATE
+ *   ──────────┼──────┼───────
+ *   alpha     │   12 │ ok
+ *
+ * A cell's padding is 1ch each side; a following cell pays 2ch on its left so
+ * the separator glyph gets a cell of its own with a blank cell after it.
+ */
+
+/*
+ * Fixed layout, so a column is exactly the width the author asks for in ch.
+ * Auto layout distributes leftover space in fractions of a pixel and puts
+ * every column after the first off the character grid. Give widths with a
+ * <colgroup> in ch; the table is then the sum of its columns.
+ */
+table {
+  table-layout: fixed;
+  width: max-content;
+  text-align: left;
+}
+
+th,
+td {
+  position: relative;
+  padding: 0 1ch;
+  vertical-align: top;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+th {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+:is(th, td) + :is(th, td) {
+  padding-left: 2ch;
+}
+
+/* │ in the header and body rows, ┼ on the header rule row. The run is two
+   lines tall so the second line lands in the header's reserved bottom row. */
+:is(th, td) + :is(th, td)::before {
+  content: var(--wt-col-light) var(--wt-col-light);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1ch;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--border);
+  font-weight: 400;
+}
+
+/* The header keeps an empty row under it for its rule. */
+thead th {
+  padding-bottom: 1lh;
+}
+
+thead th::after {
+  content: var(--wt-run-dash) var(--wt-run-dash) var(--wt-run-dash) var(--wt-run-dash);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1lh;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--border);
+  font-weight: 400;
+}
+
+/* Where a column separator crosses the header rule, the crossing wins: the
+   separator's own ::before paints ┼ there, so the dash run stops one cell
+   short of it. */
+thead :is(th, td) + :is(th, td)::after {
+  left: 1ch;
+}
+
+thead :is(th, td) + :is(th, td)::before {
+  content: "│\A┼";
+}
+
+/* Numeric columns right-align; the number still ends on a cell boundary. */
+.num,
+td.num,
+th.num {
+  text-align: right;
+}
+
+/* Row highlight uses the selection pair, never a px outline. */
+tbody tr:hover {
+  background: var(--sel);
+  color: var(--sel-fg);
+}
+
+/* Zebra striping, off by default. */
+.table-zebra tbody tr:nth-child(even) {
+  background: var(--c0);
+}

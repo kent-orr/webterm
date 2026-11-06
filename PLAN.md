@@ -86,11 +86,16 @@ size, derived from a per-font calibrated ratio (§4.7):
 
 ```css
 .screen {
-  width: calc(round(down, 100vw, 1ch));
+  width: calc(round(down, 100%, 1ch));
   margin: 0 auto;
   container-type: inline-size;
 }
 ```
+
+`100%`, not `100vw`: `100vw` includes the classic scrollbar, so on a page tall
+enough to scroll the rounded width is wider than the viewport and the last
+column lands under the scrollbar. Chromium rounds the resolved percentage, so
+the column count stays whole either way.
 
 ### 4.3 Rows and columns
 
@@ -121,13 +126,20 @@ but widths may land on fractional ch. Accept for v1; investigate
 
 Optional `.box-title` renders a label in the top border: `┌─ Title ─────┐`.
 
-Implementation candidates, to be prototyped in order:
+Implemented with candidate 1 (`src/grid/box.css`), with one correction: CSS
+cannot repeat a glyph a computed number of times, so each edge is one
+over-long run clipped by `overflow: hidden`. Clipping always eats the far end
+of a run, so the four edges are arranged cyclically and each owns the corner
+at the end it is anchored to — top anchored left owns `┌`, right anchored top
+owns `┐`, bottom anchored right owns `┘`, left anchored bottom owns `└`. The
+four strips are disjoint, so no cell is painted twice.
 
-1. `::before` / `::after` pseudo-elements filled with repeated glyphs,
-   sides via absolutely positioned elements. Keeps HTML as a plain `<div>`.
-2. `border-image` with a generated SVG 9-patch of box glyphs.
-3. Literal CSS grid of `repeat(N,1ch) × repeat(M,1lh)` with glyphs in edge
-   cells. Most faithful, most DOM. Fallback only.
+A box therefore needs four pseudo-elements and an element has two, so `.box`
+carries one empty `<span class="box-edge">`. Content stays a direct child.
+Runs cover 256 columns and 128 rows (`src/grid/glyphs.css`).
+
+Rejected: candidate 2 (an SVG 9-patch is not a glyph and loses hinting) and
+candidate 3 (one DOM node per border cell).
 
 ### 4.5 Typography
 
@@ -303,10 +315,12 @@ webterm/
 ## 9. Milestones
 
 1. **Metrics** — `test/metrics.html`, calibrate 3 fonts, lock `line-height`. ✅
-2. **Grid core** — reset, tokens, `.screen`, `.row/.col`, `.box` (style 1).
-3. **Type + table** — typography scale, table, `hr`, lists.
-4. **Forms + components** — buttons, inputs, progress, alerts, nav, status.
+2. **Grid core** — reset, tokens, `.screen`, `.row/.col`, `.box` (style 1). ✅
+3. **Type + table** — typography scale, table, `hr`, lists. ✅
+4. **Forms + components** — buttons, inputs, progress, alerts, nav, status. ✅
 5. **Themes** — variable contract frozen; hand-write 8 themes.
+   3 of 8 written (Tomorrow Night, Gruvbox Dark, Solarized Light); the
+   contract is frozen and `test/grid.spec.js` lints every theme against it.
 6. **Tests** — Playwright checks: every `.box` edge lands on an integer
    `ch`/`lh` boundary; borders have no sub-cell gaps (pixel diff).
 7. **Skin** — `.crt`.

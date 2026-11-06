@@ -1,0 +1,99 @@
+/*
+ * webterm reset.
+ *
+ * Removes every browser metric that is not a whole character cell: margins,
+ * paddings, font-size changes, px borders, border-radius. Nothing here sets a
+ * length other than 0; all cell-sized lengths live in the component files.
+ *
+ * Colors come from the theme layer (PLAN §5.1). This file names no literal
+ * color, only custom properties.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+h1, h2, h3, h4, h5, h6,
+p, ul, ol, dl, dd, figure, blockquote, pre, table, fieldset, legend {
+  margin: 0;
+  padding: 0;
+}
+
+/* Rule 3: hierarchy never comes from size. */
+h1, h2, h3, h4, h5, h6 {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
+/* One font for the whole document, form controls included (rule 2). */
+pre, code, kbd, samp, tt,
+input, button, textarea, select, table {
+  font: inherit;
+  letter-spacing: inherit;
+  word-spacing: inherit;
+  color: inherit;
+}
+
+/* Markers are drawn as glyphs in their own cells (type.css). */
+ul, ol {
+  list-style: none;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* Rule 4: no CSS borders anywhere. Borders are glyphs. */
+*,
+button, input, select, textarea, fieldset, hr, img, table, th, td {
+  border: 0;
+  border-radius: 0;
+}
+
+button, input, select, textarea {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+button {
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Focus is shown as inverse video (forms.css), not as an outline ring, which
+   would be a sub-cell px box. */
+:focus {
+  outline: 0;
+}
+
+::selection {
+  background: var(--sel);
+  color: var(--sel-fg);
+}
+
+a {
+  color: var(--link);
+  text-decoration-thickness: from-font;
+  text-underline-offset: from-font;
+}
+
+/* Rule 6: core has no raster images. Nothing is styled for <img>; a page that
+   uses one is on its own for alignment. */

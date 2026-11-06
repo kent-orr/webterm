@@ -7,7 +7,8 @@
   "scripts": {
     "test": "node --test test/*.spec.js",
     "calibrate": "node tools/calibrate.js",
-    "font-limits": "python3 tools/font-limits.py > fonts/metrics.json"
+    "font-limits": "python3 tools/font-limits.py > fonts/metrics.json",
+    "serve": "node tools/serve.js"
   },
   "devDependencies": {
     "playwright": "1.63.0",

@@ -1,0 +1,78 @@
+/*
+ * webterm layout (PLAN §4.2, §4.3).
+ *
+ * Every horizontal length is Nch, every vertical length Nlh.
+ */
+
+/*
+ * The screen snaps to a whole column count.
+ *
+ * PLAN §4.2 writes this as round(down, 100vw, 1ch). 100vw includes the
+ * classic scrollbar, so on a page tall enough to scroll the rounded width is
+ * wider than the viewport and the last column sits under the scrollbar.
+ * Rounding the parent's resolved width instead keeps the integer-column rule
+ * and stays inside the viewport. Chromium resolves round() against the used
+ * percentage, so the result is still a whole number of cells.
+ */
+.screen {
+  width: calc(round(down, 100%, 1ch));
+  margin: 0 auto;
+  container-type: inline-size;
+}
+
+/* Fixed-width screens, for pages that want a classic terminal. */
+.screen-80 { width: 80ch; }
+.screen-100 { width: 100ch; }
+.screen-120 { width: 120ch; }
+
+/* One cell of gutter between columns, so N cols lose N-1 cells to gaps. */
+.row {
+  display: flex;
+  gap: 1ch;
+  align-items: stretch;
+}
+
+/* Vertical rhythm: whole rows. */
+.row + .row,
+.stack > * + * {
+  margin-top: 1lh;
+}
+
+/* Fill the remaining columns. */
+.col {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Fixed column counts (PLAN §4.3: terminals think "sidebar is 24 cols"). */
+.col-4 { flex: 0 0 4ch; min-width: 0; }
+.col-8 { flex: 0 0 8ch; min-width: 0; }
+.col-12 { flex: 0 0 12ch; min-width: 0; }
+.col-16 { flex: 0 0 16ch; min-width: 0; }
+.col-20 { flex: 0 0 20ch; min-width: 0; }
+.col-24 { flex: 0 0 24ch; min-width: 0; }
+.col-32 { flex: 0 0 32ch; min-width: 0; }
+.col-40 { flex: 0 0 40ch; min-width: 0; }
+
+/* Breakpoints are column counts, not pixels (rule 8). Below 64 columns a row
+   stacks, because a 24-column sidebar beside anything is unreadable there. */
+@container (max-width: 63ch) {
+  .row {
+    display: block;
+  }
+  .row > * + * {
+    margin-top: 1lh;
+  }
+  .row > [class*="col-"] {
+    width: 100%;
+  }
+}
+
+/* Spacing helpers, in cells. */
+.mt-1 { margin-top: 1lh; }
+.mt-2 { margin-top: 2lh; }
+.mb-1 { margin-bottom: 1lh; }
+.mb-2 { margin-bottom: 2lh; }
+.pad { padding: 1lh 1ch; }
+.right { text-align: right; }
+.center { text-align: center; }

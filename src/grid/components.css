@@ -1,0 +1,160 @@
+/*
+ * webterm components (PLAN §4.6).
+ */
+
+/* Inverse-video single word. */
+.badge {
+  display: inline-block;
+  vertical-align: top;
+  height: 1lh;
+  padding: 0 1ch;
+  background: var(--fg);
+  color: var(--bg);
+  font-weight: 700;
+  white-space: pre;
+}
+
+.badge-ok { background: var(--ok); }
+.badge-warn { background: var(--warn); }
+.badge-error { background: var(--error); }
+.badge-info { background: var(--info); }
+.badge-muted { background: var(--muted); }
+
+/*
+ * ███████░░░░░░ — a bar is N cells wide with the first M filled. The author
+ * gives cell counts, not percentages, so the fill always lands on a cell
+ * boundary. PLAN §4.7 warns that runs of █ can show a faint seam when a cell
+ * is a fractional number of device pixels; that is a font/size property, not
+ * a layout error.
+ */
+.progress {
+  position: relative;
+  display: inline-block;
+  width: calc(var(--cells, 24) * 1ch);
+  height: 1lh;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--c8);
+  vertical-align: top;
+}
+
+.progress::before {
+  content: var(--wt-run-shade) var(--wt-run-shade) var(--wt-run-shade) var(--wt-run-shade);
+}
+
+.progress > .bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--fill, 0) * 1ch);
+  height: 1lh;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--ok);
+}
+
+.progress > .bar::before {
+  content: var(--wt-run-block) var(--wt-run-block) var(--wt-run-block) var(--wt-run-block);
+}
+
+.progress-warn > .bar { color: var(--warn); }
+.progress-error > .bar { color: var(--error); }
+.progress-info > .bar { color: var(--info); }
+
+/* An alert is a box tinted per level (c1 error, c3 warn, c2 ok, c4 info). */
+.alert { --border: var(--fg); }
+.alert-error { --border: var(--error); color: var(--error); }
+.alert-warn { --border: var(--warn); color: var(--warn); }
+.alert-ok { --border: var(--ok); color: var(--ok); }
+.alert-info { --border: var(--info); color: var(--info); }
+
+.alert > .box-title { color: inherit; }
+
+/* Horizontal menu; the active item is inverse. */
+.nav {
+  display: flex;
+  gap: 2ch;
+  white-space: nowrap;
+}
+
+.nav > * {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.nav > *:hover {
+  text-decoration: underline;
+}
+
+.nav > .active,
+.nav > [aria-current] {
+  background: var(--fg);
+  color: var(--bg);
+  padding: 0 1ch;
+  text-decoration: none;
+}
+
+/* A full-width inverse strip. Use .statusbar-fixed to pin it to the bottom. */
+.statusbar {
+  display: flex;
+  gap: 2ch;
+  height: 1lh;
+  padding: 0 1ch;
+  background: var(--fg);
+  color: var(--bg);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.statusbar a {
+  color: inherit;
+}
+
+.statusbar > .spacer {
+  flex: 1 1 0;
+}
+
+.statusbar-fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+}
+
+/* A menu as a vertical list, the selected row inverse across the full width. */
+.menu > * {
+  display: block;
+  padding: 0 1ch;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.menu > *:hover {
+  background: var(--sel);
+  color: var(--sel-fg);
+}
+
+.menu > .active {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+/* key: value rows, keys in a fixed column. */
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 2ch;
+}
+
+.kv > dt {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* A cell-sized spinner frame set, for pages that animate state by hand. */
+.spin {
+  display: inline-block;
+  width: 1ch;
+  white-space: pre;
+}

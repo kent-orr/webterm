@@ -55,3 +55,20 @@
   --wt-font-family: "DejaVu Sans Mono", monospace;
   --wt-lh-ratio: 1.153;
 }
+
+/*
+ * Semantic aliases (PLAN §5.1). These name no color: they only point at the
+ * ANSI slots a theme fills in, so the grid layer stays color-free. A page with
+ * no theme loaded leaves these unresolved, which is intentional — tokens.css
+ * alone is not meant to render a page.
+ */
+:root {
+  --border: var(--c8);
+  --muted: var(--c8);
+  --error: var(--c1);
+  --ok: var(--c2);
+  --warn: var(--c3);
+  --info: var(--c4);
+  --accent: var(--c5);
+  --link: var(--c4);
+}

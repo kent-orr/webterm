@@ -1,0 +1,36 @@
+/* Solarized light. Ethan Schoonover, ethanschoonover.com/solarized */
+:root {
+  --bg: #fdf6e3;
+  --fg: #657b83;
+  --cursor: #586e75;
+  --cursor-fg: #fdf6e3;
+  --sel: #eee8d5;
+  --sel-fg: #586e75;
+
+  --c0: #eee8d5;
+  --c1: #dc322f;
+  --c2: #859900;
+  --c3: #b58900;
+  --c4: #268bd2;
+  --c5: #d33682;
+  --c6: #2aa198;
+  --c7: #073642;
+  --c8: #93a1a1;
+  --c9: #cb4b16;
+  --c10: #586e75;
+  --c11: #657b83;
+  --c12: #839496;
+  --c13: #6c71c4;
+  --c14: #93a1a1;
+  --c15: #002b36;
+}
+
+/* On a light background the inverse pair and the rules need the dark end of
+   the ramp, not the light end (PLAN §8: does inverse hierarchy still read?). */
+:root {
+  --fg: #586e75;
+  --muted: #93a1a1;
+  --border: #93a1a1;
+  --accent: #d33682;
+  --link: #268bd2;
+}

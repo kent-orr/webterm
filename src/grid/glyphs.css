@@ -1,0 +1,36 @@
+/*
+ * webterm glyph runs.
+ *
+ * A terminal border is a run of repeated glyphs, and CSS cannot repeat a
+ * string a computed number of times. So every edge in webterm is drawn as one
+ * over-long run of real glyphs in a pseudo-element, clipped to the element by
+ * `overflow: hidden`. Clipping always eats the far end of the run, so each
+ * edge is anchored at the end that owns a corner (see box.css).
+ *
+ * Each token below is 64 cells long and is concatenated in `content` to reach
+ * the length an edge needs:
+ *
+ *   content: var(--wt-tl) var(--wt-h) var(--wt-h) var(--wt-h) var(--wt-h);
+ *
+ * Limits: four copies cover 256 columns, two copies 128 rows. A box larger than
+ * that loses the tail of its border. Raise the copy count here if you need more.
+ *
+ * Vertical runs are one glyph per line (`\A` newlines, needs `white-space:
+ * pre`); every line is exactly 1lh because the document has a single
+ * line-height (rule 2), so a vertical run tracks the row grid exactly.
+ */
+
+:root {
+  --wt-run-dash: "────────────────────────────────────────────────────────────────";
+  --wt-run-double: "════════════════════════════════════════════════════════════════";
+  --wt-run-heavy: "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+  --wt-run-round: "────────────────────────────────────────────────────────────────";
+  --wt-run-ascii: "----------------------------------------------------------------";
+  --wt-run-block: "████████████████████████████████████████████████████████████████";
+  --wt-run-shade: "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░";
+  --wt-run-eq: "================================================================";
+  --wt-col-light: "│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A";
+  --wt-col-double: "║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A";
+  --wt-col-heavy: "┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A";
+  --wt-col-ascii: "|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A";
+}

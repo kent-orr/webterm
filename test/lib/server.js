@@ -14,7 +14,7 @@ const TYPES = {
   '.woff2': 'font/woff2',
 };
 
-function startServer() {
+function startServer(port = 0) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const file = path.resolve(ROOT, '.' + decodeURIComponent(url.pathname));
@@ -32,7 +32,7 @@ function startServer() {
     });
   });
   return new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(port, '127.0.0.1', () => {
       const { port } = server.address();
       resolve({ origin: `http://127.0.0.1:${port}`, close: () => new Promise((r) => server.close(r)) });
     });
