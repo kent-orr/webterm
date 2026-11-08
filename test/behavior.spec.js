@@ -2057,6 +2057,282 @@ describe('toast queue and events', () => {
   });
 });
 
+/* -------------------------------------------------------- phase 4: modals */
+
+describe('modal', () => {
+  const close = async () => page.evaluate(() => {
+    for (const d of document.querySelectorAll('dialog.modal')) if (d.open) d.close();
+  });
+
+  after(close);
+
+  test('the data API opens and closes it', async () => {
+    await page.click('[data-wt-toggle="modal"][data-wt-target="#modal-demo"]');
+    const opened = await page.$eval('#modal-demo', (el) => el.open);
+    await page.click('#modal-demo [data-wt-dismiss="modal"]');
+    const closed = await page.$eval('#modal-demo', (el) => !el.open);
+    assert.ok(opened, 'data-wt-toggle did not open the dialog');
+    assert.ok(closed, 'data-wt-dismiss did not close it');
+  });
+
+  test('Escape closes it', async () => {
+    await page.click('[data-wt-toggle="modal"][data-wt-target="#modal-demo"]');
+    await page.keyboard.press('Escape');
+    const open = await page.$eval('#modal-demo', (el) => el.open);
+    assert.equal(open, false);
+  });
+
+  test('focus starts inside and returns to the opener', async () => {
+    const opener = '[data-wt-toggle="modal"][data-wt-target="#modal-demo"]';
+    await page.focus(opener);
+    await page.click(opener);
+    const inside = await page.evaluate(() => document.querySelector('#modal-demo').contains(document.activeElement));
+    await page.keyboard.press('Escape');
+    const returned = await page.evaluate((sel) => document.activeElement === document.querySelector(sel), opener);
+    assert.ok(inside, 'focus stayed outside the dialog');
+    assert.ok(returned, 'focus did not come back to the opener');
+  });
+
+  // §11.3, the hazard this framework has and others do not.
+  test('opening a modal does not change the column count', async () => {
+    const before = await screenColumns(page, cell);
+    await page.click('[data-wt-toggle="modal"][data-wt-target="#modal-demo"]');
+    const during = await screenColumns(page, cell);
+    const locked = await page.evaluate(() => getComputedStyle(document.documentElement).overflow);
+    await close();
+    const after = await screenColumns(page, cell);
+    assert.match(locked, /hidden/, 'the page was not scroll-locked');
+    assert.equal(during, before, 'the page reflowed by a column behind the dialog');
+    assert.equal(after, before);
+  });
+
+  test('a dialog is a whole number of cells, on a cell and on a row', async () => {
+    await page.click('[data-wt-toggle="modal"][data-wt-target="#modal-demo"]');
+    const r = await page.$eval('#modal-demo', (el) => {
+      const b = el.getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width, h: b.height, cells: Number(getComputedStyle(el).getPropertyValue('--cells')) };
+    });
+    await close();
+    assert.ok(Math.abs(r.w - r.cells * cell.ch) < TOL, `dialog is ${r.w}px, expected ${r.cells} cells`);
+    assert.ok(offGrid(r.h, cell.lh) < TOL, `dialog is ${r.h}px tall, ${(r.h / cell.lh).toFixed(3)} rows`);
+    assert.ok(offGrid(r.x, cell.ch) < TOL, `dialog starts at x=${r.x}, off the grid`);
+    assert.ok(offGrid(r.y, cell.lh) < TOL, `dialog starts at y=${r.y}, off a row`);
+  });
+
+  test('a dialog wider than the screen is clamped to it', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#modal-demo');
+      el.style.setProperty('--cells', '10000');
+      el.showModal();
+      const b = el.getBoundingClientRect();
+      el.close();
+      el.style.removeProperty('--cells');
+      return { w: b.width, viewport: document.documentElement.clientWidth };
+    });
+    assert.ok(r.w <= r.viewport, `dialog is ${r.w}px in a ${r.viewport}px viewport`);
+    assert.ok(offGrid(r.w, cell.ch) < TOL, `clamped dialog is ${r.w}px, off the grid`);
+  });
+
+  test('a dialog draws four corners and continuous edges', async () => {
+    await page.click('[data-wt-toggle="modal"][data-wt-target="#modal-demo"]');
+    await hideFixed(page, '.statusbar-fixed');
+    const shot = await page.screenshot({ animations: 'disabled', caret: 'hide' });
+    await showFixed(page);
+    const png = borders.readShot(shot);
+    const boxes = await borders.boxGeometry(page, '#modal-demo', { fixed: true });
+    await close();
+    assert.equal(boxes.length, 1);
+    assert.deepEqual(borders.missingCorners(png, boxes, cell), []);
+    assert.deepEqual(borders.brokenEdges(png, boxes, cell), []);
+  });
+
+  // The shade cannot be ::backdrop — that takes no generated content — so it
+  // is a fixed child of the dialog, which is in the top layer with it.
+  test('the backdrop is a glyph shade covering the viewport', async () => {
+    await page.click('[data-wt-toggle="modal"][data-wt-target="#modal-demo"]');
+    const r = await page.evaluate(() => {
+      const shade = document.querySelector('#modal-demo > .backdrop');
+      if (!shade) return null;
+      const b = shade.getBoundingClientRect();
+      // Measure against a stretched fixed element, not the viewport: a fixed
+      // containing block excludes the scrollbar gutter.
+      const ref = document.createElement('div');
+      ref.style.cssText = 'position:fixed;top:0;bottom:0;left:0;right:0;visibility:hidden';
+      document.body.append(ref);
+      const a = ref.getBoundingClientRect();
+      ref.remove();
+      return {
+        w: b.width,
+        h: b.height,
+        content: getComputedStyle(shade, '::before').content.slice(0, 4),
+        position: getComputedStyle(shade).position,
+        vw: a.width,
+        vh: a.height,
+      };
+    });
+    // Closing the element directly, as Escape does, leaves the cleanup to the
+    // dialog's own close event — which is asynchronous.
+    const gone = await page.evaluate(async () => {
+      document.querySelector('#modal-demo').close();
+      await new Promise((r) => setTimeout(r, 0));
+      return document.querySelector('#modal-demo > .backdrop') === null;
+    });
+    assert.ok(r, 'the dialog has no backdrop element');
+    assert.equal(r.position, 'fixed');
+    assert.match(r.content, /[░▒▓]/, `backdrop paints ${JSON.stringify(r.content)}`);
+    assert.ok(r.vw - r.w < cell.ch, `backdrop is ${r.w}px of a ${r.vw}px viewport`);
+    assert.ok(r.vh - r.h < cell.lh, `backdrop is ${r.h}px of a ${r.vh}px viewport`);
+    assert.ok(gone, 'the backdrop outlived the dialog');
+  });
+
+  test('clicking the backdrop closes it, unless it is static', async () => {
+    const result = await page.evaluate(async () => {
+      const plain = document.querySelector('#modal-demo');
+      const stuck = document.querySelector('#modal-static');
+      const clickOutside = (el) => {
+        const r = el.getBoundingClientRect();
+        el.dispatchEvent(new MouseEvent('click', {
+          bubbles: true, clientX: Math.max(0, r.left - 20), clientY: Math.max(0, r.top - 20),
+        }));
+      };
+      plain.showModal();
+      clickOutside(plain);
+      const plainClosed = !plain.open;
+      if (plain.open) plain.close();
+
+      stuck.showModal();
+      clickOutside(stuck);
+      const staticStillOpen = stuck.open;
+      stuck.close();
+      return { plainClosed, staticStillOpen };
+    });
+    assert.equal(result.plainClosed, true, 'a backdrop click should dismiss an ordinary dialog');
+    assert.equal(result.staticStillOpen, true, 'data-wt-static must refuse a backdrop click');
+  });
+
+  test('the four lifecycle events fire in order and show is cancelable', async () => {
+    const seen = await page.evaluate(async () => {
+      const el = document.querySelector('#modal-demo');
+      const log = [];
+      const types = ['wt:modal:show', 'wt:modal:shown', 'wt:modal:hide', 'wt:modal:hidden'];
+      const handler = (e) => log.push(e.type);
+      for (const t of types) el.addEventListener(t, handler);
+      const modal = window.Webterm.getOrCreate('modal', el);
+      modal.show();
+      modal.hide();
+      for (const t of types) el.removeEventListener(t, handler);
+
+      const block = (e) => e.preventDefault();
+      el.addEventListener('wt:modal:show', block);
+      modal.show();
+      const blocked = el.open;
+      el.removeEventListener('wt:modal:show', block);
+      if (el.open) el.close();
+      return { log, blocked };
+    });
+    assert.deepEqual(seen.log, ['wt:modal:show', 'wt:modal:shown', 'wt:modal:hide', 'wt:modal:hidden']);
+    assert.equal(seen.blocked, false, 'a prevented show opened the dialog anyway');
+  });
+
+  test('nested dialogs each hold their own scroll lock', async () => {
+    const result = await page.evaluate(() => {
+      const a = window.Webterm.getOrCreate('modal', document.querySelector('#modal-demo'));
+      const b = window.Webterm.getOrCreate('modal', document.querySelector('#modal-static'));
+      a.show();
+      b.show();
+      const both = window.Webterm.scrollLocks();
+      b.hide();
+      const afterInner = getComputedStyle(document.documentElement).overflow;
+      a.hide();
+      const afterOuter = getComputedStyle(document.documentElement).overflow;
+      return { both, afterInner, afterOuter, locks: window.Webterm.scrollLocks() };
+    });
+    assert.equal(result.both, 2);
+    assert.match(result.afterInner, /hidden/, 'closing the inner dialog unlocked the page under the outer one');
+    assert.ok(!/hidden/.test(result.afterOuter), 'the lock never released');
+    assert.equal(result.locks, 0);
+  });
+
+  test('confirm resolves true for yes and false for cancel', async () => {
+    const yes = await page.evaluate(async () => {
+      const answer = window.Webterm.confirm('Drop replica charlie?');
+      await new Promise((r) => setTimeout(r, 0));
+      document.querySelector('dialog.modal[open] [value="yes"]').click();
+      return answer;
+    });
+    const no = await page.evaluate(async () => {
+      const answer = window.Webterm.confirm('Drop replica charlie?');
+      await new Promise((r) => setTimeout(r, 0));
+      document.querySelector('dialog.modal[open] [value="no"]').click();
+      return answer;
+    });
+    const escaped = await page.evaluate(async () => {
+      const answer = window.Webterm.confirm('Drop replica charlie?');
+      await new Promise((r) => setTimeout(r, 0));
+      document.querySelector('dialog.modal[open]').close();
+      return answer;
+    });
+    assert.equal(yes, true);
+    assert.equal(no, false);
+    assert.equal(escaped, false, 'a dismissed confirm must not read as yes');
+  });
+
+  test('confirm cleans up after itself', async () => {
+    const left = await page.evaluate(async () => {
+      const before = document.querySelectorAll('dialog.modal').length;
+      const answer = window.Webterm.confirm('tidy?');
+      await new Promise((r) => setTimeout(r, 0));
+      document.querySelector('dialog.modal[open] [value="no"]').click();
+      await answer;
+      return document.querySelectorAll('dialog.modal').length - before;
+    });
+    assert.equal(left, 0, 'confirm left its dialog in the document');
+  });
+
+  test('prompt resolves the value, or null when dismissed', async () => {
+    const value = await page.evaluate(async () => {
+      const answer = window.Webterm.prompt({ label: 'host', value: 'alpha' });
+      await new Promise((r) => setTimeout(r, 0));
+      const dialog = document.querySelector('dialog.modal[open]');
+      dialog.querySelector('.field').value = 'charlie';
+      dialog.querySelector('[value="ok"]').click();
+      return answer;
+    });
+    const dismissed = await page.evaluate(async () => {
+      const answer = window.Webterm.prompt({ label: 'host' });
+      await new Promise((r) => setTimeout(r, 0));
+      document.querySelector('dialog.modal[open] [value="cancel"]').click();
+      return answer;
+    });
+    assert.equal(value, 'charlie');
+    assert.equal(dismissed, null);
+  });
+
+  // §11.1: the static form renders with no script at all.
+  test('a dialog with [open] renders on the grid without the module', async () => {
+    const ctx = await browser.newContext({
+      deviceScaleFactor: 1,
+      viewport: { width: 1280, height: 1024 },
+      javaScriptEnabled: false,
+    });
+    const quiet = await ctx.newPage();
+    await quiet.goto(`${server.origin}/test/behavior.html`);
+    await quiet.waitForTimeout(200);
+    const c = await cellSize(quiet);
+    const r = await quiet.evaluate(() => {
+      const el = document.querySelector('#modal-open');
+      const b = el.getBoundingClientRect();
+      const screen = document.querySelector('.screen').getBoundingClientRect();
+      return { dx: b.x - screen.x, w: b.width, h: b.height, open: el.open };
+    });
+    assert.equal(r.open, true, 'the fixture is not open');
+    assert.ok(offGrid(r.w, c.ch) < TOL, `static dialog is ${r.w}px wide`);
+    assert.ok(offGrid(r.h, c.lh) < TOL, `static dialog is ${r.h}px tall`);
+    assert.ok(offGrid(r.dx, c.ch) < TOL, `static dialog starts +${r.dx}px into the screen`);
+    await ctx.close();
+  });
+});
+
 describe('no-script', () => {
   // §11.1: the CSS is a whole framework on its own. The static page has to
   // render and stay on the grid with the module never loaded.

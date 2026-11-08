@@ -221,6 +221,48 @@ echo      replica  0.12  ok</pre>
     </div>
   </div>
 
+  <h2 class="mt-2">Modals</h2>
+  <p>A native <code>&lt;dialog&gt;</code> that is also a box, so the focus trap,
+  Escape and the top layer are the browser’s work and the border is the grid
+  layer’s. The dim behind it is a run of block glyphs painted in the background
+  colour, not a translucent black.</p>
+  <p class="mt-1">
+    <button class="btn" data-wt-toggle="modal" data-wt-target="#modal-demo">open</button>
+    <button class="btn" data-wt-toggle="modal" data-wt-target="#modal-static">static</button>
+    <button class="btn btn-error" id="modal-confirm">confirm()</button>
+    <button class="btn" id="modal-prompt">prompt()</button>
+    <span>answer: <span id="modal-answer" class="dim">—</span></span>
+  </p>
+
+  <dialog class="box modal modal-60" id="modal-demo">
+    <span class="box-edge"></span>
+    <span class="box-title">confirm</span>
+    <p class="modal-body">Drop replica charlie? It is 412 segments behind the
+    primary and has been degraded for nineteen minutes.</p>
+    <div class="modal-actions">
+      <button class="btn btn-error" data-wt-dismiss="modal" value="yes">Yes</button>
+      <button class="btn" data-wt-dismiss="modal" value="no" autofocus>Cancel</button>
+    </div>
+  </dialog>
+
+  <dialog class="box modal modal-40" id="modal-static" data-wt-static>
+    <span class="box-edge"></span>
+    <span class="box-title">static</span>
+    <p class="modal-body">A click outside will not dismiss this one.</p>
+    <div class="modal-actions">
+      <button class="btn" data-wt-dismiss="modal">OK</button>
+    </div>
+  </dialog>
+
+  <h3 class="mt-2">Without a script</h3>
+  <p>A dialog with <code>open</code> is an ordinary box in the flow — no top
+  layer, no backdrop, still on the grid.</p>
+  <dialog class="box modal modal-40 mt-1" id="modal-open" open>
+    <span class="box-edge"></span>
+    <span class="box-title">inline</span>
+    <p class="modal-body">Rendered with no script at all.</p>
+  </dialog>
+
   <h3 class="mt-2">Scroll lock</h3>
   <p>Locking page scroll must not change the column count: without a stable
   scrollbar gutter the screen rounds up a column and the whole page reflows
@@ -347,6 +389,15 @@ $('#toast-flood').addEventListener('click', () => {
   }
 });
 $('#toast-clear').addEventListener('click', () => Webterm.clearToasts());
+
+$('#modal-confirm').addEventListener('click', async () => {
+  const answer = await Webterm.confirm('Drop replica charlie?');
+  $('#modal-answer').textContent = answer ? 'yes' : 'no';
+});
+$('#modal-prompt').addEventListener('click', async () => {
+  const answer = await Webterm.prompt({ label: 'host', value: 'charlie', message: 'Which replica?' });
+  $('#modal-answer').textContent = answer === null ? 'cancelled' : answer;
+});
 
 $('#lock').addEventListener('click', () => {
   Webterm.lockScroll();

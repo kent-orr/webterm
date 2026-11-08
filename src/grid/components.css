@@ -512,3 +512,94 @@ body:has(.statusbar-fixed) .toast-stack-br {
   background: var(--bg);
   color: inherit;
 }
+
+/*
+ * ------------------------------------------------------------------ modals
+ *
+ * PLAN §11.7. A native <dialog> that is also a .box, so the border, the title
+ * and the tint come from the grid layer and the focus trap, Escape, the inert
+ * background and the top-layer stacking come from the browser.
+ *
+ *   <dialog class="box modal modal-60" id="confirm">
+ *     <span class="box-edge"></span>
+ *     <span class="box-title">Confirm</span>
+ *     <p class="modal-body">Drop replica charlie?</p>
+ *     <div class="modal-actions">
+ *       <button class="btn btn-error" data-wt-dismiss="modal" value="yes">Yes</button>
+ *       <button class="btn" data-wt-dismiss="modal">Cancel</button>
+ *     </div>
+ *   </dialog>
+ */
+
+dialog.modal {
+  --cells: 60;
+
+  /*
+   * The width is the declared cell count, or the widest whole number of cells
+   * that fits — a dialog wider than the terminal has a border off the edge of
+   * it.
+   */
+  width: min(calc(var(--cells) * 1ch), round(down, 100%, 1ch));
+  max-width: round(down, 100%, 1ch);
+
+  /*
+   * A dialog centers with auto margins, and the viewport is not a whole number
+   * of cells, so auto would put its left edge on a half cell. round() takes
+   * the same centering and snaps it to the grid. Vertically it hangs from a
+   * fixed row rather than centering, because centering something whose height
+   * CSS does not know cannot be snapped at all (PLAN §11.3).
+   */
+  margin-top: var(--wt-dialog-top);
+  margin-bottom: auto;
+  margin-left: round(down, calc((100% - min(calc(var(--cells) * 1ch), round(down, 100%, 1ch))) / 2), 1ch);
+  margin-right: auto;
+
+  padding: 1lh 2ch;
+  background: var(--bg);
+  color: var(--fg);
+  z-index: var(--wt-z-modal);
+}
+
+.modal-40 { --cells: 40; }
+.modal-60 { --cells: 60; }
+.modal-80 { --cells: 80; }
+
+/*
+ * The real dim is the .backdrop element the behavior layer puts inside the
+ * dialog — a fixed child of a top-layer element is in the top layer with it,
+ * and unlike ::backdrop it can hold a glyph run. ::backdrop itself is cleared
+ * so the two do not stack.
+ */
+dialog.modal::backdrop {
+  background: transparent;
+}
+
+/*
+ * Behind everything the dialog draws, including its own border.
+ *
+ * A box's top and left edges are ::before and ::after on the element itself,
+ * and those paint as in-flow content — after an ordinary first child. Without
+ * this the shade dithers the very border it is supposed to sit behind, and
+ * two of the four edges come out dotted. A negative z-index puts it in the
+ * step before: above the dialog's background, below everything else. Above
+ * the background is all it needs, because inside the dialog's own rect the
+ * glyphs are --bg on --bg and invisible anyway.
+ */
+dialog.modal > .backdrop {
+  z-index: -1;
+}
+
+.modal-body + .modal-body,
+.modal-body + .modal-actions,
+.modal-actions {
+  margin-top: 1lh;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 2ch;
+}
+
+.modal-actions-right {
+  justify-content: flex-end;
+}

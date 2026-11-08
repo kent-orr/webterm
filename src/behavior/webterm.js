@@ -18,9 +18,11 @@ import * as cells from './lib/cells.js';
 import * as motion from './lib/motion.js';
 import { createBox, ensureEdge, boxTitle } from './lib/box.js';
 import { emit } from './lib/events.js';
+import { lockScroll, unlockScroll, scrollLocks } from './lib/scroll.js';
 import { Progress, fillCells, setLoading, isLoading } from './progress.js';
 import { Placeholder, CHARSETS } from './placeholder.js';
 import { Toast, toast, toastStack, clearToasts, toastQueue, useConfig } from './toast.js';
+import { Modal, confirm, prompt } from './modal.js';
 
 export const version = '0.1.0';
 
@@ -39,9 +41,11 @@ export const config = {
 };
 
 export { cells, motion, createBox, ensureEdge, boxTitle, emit };
+export { lockScroll, unlockScroll, scrollLocks };
 export { Progress, fillCells, setLoading, isLoading };
 export { Placeholder, CHARSETS };
 export { Toast, toast, toastStack, clearToasts, toastQueue };
+export { Modal, confirm, prompt };
 
 
 /* ---------------------------------------------------------------- registry */
@@ -143,34 +147,6 @@ function onClick(event) {
   }
 }
 
-/* ------------------------------------------------------------- scroll lock */
-
-/*
- * Reference counted, because two dialogs can be open at once (.modal-stack)
- * and the inner one closing must not unlock the page under the outer one. The
- * lock is a class; the reason it does not move the column count is in
- * overlay.css and reset.css (PLAN §11.3).
- */
-let locks = 0;
-
-export function lockScroll() {
-  locks += 1;
-  if (locks === 1) document.documentElement.classList.add('wt-locked');
-  return locks;
-}
-
-export function unlockScroll() {
-  if (locks === 0) return 0;
-  locks -= 1;
-  if (locks === 0) document.documentElement.classList.remove('wt-locked');
-  return locks;
-}
-
-/** How many locks are held. Mostly for a spec. */
-export function scrollLocks() {
-  return locks;
-}
-
 /* -------------------------------------------------------------------- boot */
 
 /* ------------------------------------------------------------- components */
@@ -181,6 +157,7 @@ useConfig(config);
 register('progress', Progress);
 register('placeholder', Placeholder);
 register('toast', Toast);
+register('modal', Modal);
 
 /** The placeholder on `el`, mounting it if it has none. */
 export function ph(el) {
@@ -215,6 +192,9 @@ const api = {
   toastStack,
   clearToasts,
   toastQueue,
+  Modal,
+  confirm,
+  prompt,
 };
 
 if (typeof window !== 'undefined') {
