@@ -97,6 +97,30 @@ export function screenCols(el = null) {
   return roundCells(width);
 }
 
+/**
+ * How far `el`'s box falls outside the viewport, in whole cells and rows.
+ *
+ * A popup has to know whether it fits before it decides which edge to anchor
+ * to, and that is a viewport question, so it is a pixel question — which means
+ * it belongs in this module and nowhere else (PLAN §11.2 rule 4). The caller
+ * gets four integers and never sees a pixel.
+ *
+ * Rounded up, deliberately: a box hanging a third of a cell over the edge is
+ * over the edge, and a popup that flips on that is right to.
+ */
+export function overflow(el) {
+  const r = el.getBoundingClientRect();
+  const root = document.documentElement;
+  const out = (px, unit) => Math.max(0, Math.ceil(px / unit - EPS));
+  const { ch, lh } = cell();
+  return {
+    left: out(-r.left, ch),
+    right: out(r.right - root.clientWidth, ch),
+    top: out(-r.top, lh),
+    bottom: out(r.bottom - root.clientHeight, lh),
+  };
+}
+
 /** The row count of the viewport, rounded down — a terminal's height. */
 export function viewportRows() {
   return floorRows(window.innerHeight);

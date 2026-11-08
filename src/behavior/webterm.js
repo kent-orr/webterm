@@ -26,6 +26,7 @@ import { Toast, toast, toastStack, clearToasts, toastQueue, useConfig } from './
 import { Modal, confirm, prompt } from './modal.js';
 import { Collapse } from './collapse.js';
 import { Tabs } from './tabs.js';
+import { Dropdown } from './dropdown.js';
 
 export const version = '0.1.0';
 
@@ -50,7 +51,7 @@ export { Progress, fillCells, setLoading, isLoading };
 export { Placeholder, CHARSETS };
 export { Toast, toast, toastStack, clearToasts, toastQueue };
 export { Modal, confirm, prompt };
-export { Collapse, Tabs };
+export { Collapse, Tabs, Dropdown };
 
 
 /* ---------------------------------------------------------------- data API */
@@ -115,6 +116,7 @@ register('toast', Toast);
 register('modal', Modal);
 register('collapse', Collapse);
 register('tabs', Tabs);
+register('dropdown', Dropdown);
 
 /** The placeholder on `el`, mounting it if it has none. */
 export function ph(el) {
@@ -154,6 +156,7 @@ const api = {
   prompt,
   Collapse,
   Tabs,
+  Dropdown,
 };
 
 if (typeof window !== 'undefined') {

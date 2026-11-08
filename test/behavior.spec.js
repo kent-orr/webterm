@@ -255,6 +255,34 @@ describe('cells', () => {
     assert.equal(result.zero, 0);
   });
 
+  // The one pixel read a popup needs: how far it falls outside the viewport,
+  // reported in whole cells and rows so the caller stays in cells (§11.2
+  // rule 4). Used by the dropdown and the tooltip to decide whether to flip.
+  test('overflow reports whole cells outside the viewport', async () => {
+    const result = await page.evaluate(() => {
+      const { ch, lh } = window.Webterm.cells.cell();
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:fixed;left:0;top:0;width:10ch;height:2lh;visibility:hidden';
+      document.body.append(probe);
+      const read = () => window.Webterm.cells.overflow(probe);
+
+      const inside = read();
+      // Six cells and three rows of it pushed past the far corner.
+      const w = document.documentElement.clientWidth;
+      const h = document.documentElement.clientHeight;
+      probe.style.transform = `translate(${w - 4 * ch}px, ${h - 1 * lh}px)`;
+      const corner = read();
+      // And the same the other way, off the near corner.
+      probe.style.transform = `translate(${-6 * ch}px, ${-3 * lh}px)`;
+      const origin = read();
+      probe.remove();
+      return { inside, corner, origin };
+    });
+    assert.deepEqual(result.inside, { left: 0, right: 0, top: 0, bottom: 0 }, 'a box inside the viewport overflows nothing');
+    assert.deepEqual(result.corner, { left: 0, right: 6, top: 0, bottom: 1 });
+    assert.deepEqual(result.origin, { left: 6, right: 0, top: 3, bottom: 0 });
+  });
+
   test('screenCols matches the screen container', async () => {
     const reported = await page.evaluate(() => window.Webterm.cells.screenCols());
     assert.equal(reported, await screenColumns(page, cell));
@@ -447,12 +475,13 @@ describe('overlay', () => {
       return {
         content: read('--wt-z-content'),
         statusbar: read('--wt-z-statusbar'),
+        dropdown: read('--wt-z-dropdown'),
         toast: read('--wt-z-toast'),
         backdrop: read('--wt-z-backdrop'),
         modal: read('--wt-z-modal'),
       };
     });
-    const order = ['content', 'statusbar', 'toast', 'backdrop', 'modal'];
+    const order = ['content', 'statusbar', 'dropdown', 'toast', 'backdrop', 'modal'];
     for (const name of order) assert.ok(Number.isFinite(z[name]), `--wt-z-${name} is not a number`);
     for (let i = 1; i < order.length; i++) {
       assert.ok(z[order[i]] > z[order[i - 1]], `${order[i]} (${z[order[i]]}) must sit above ${order[i - 1]} (${z[order[i - 1]]})`);
@@ -2998,6 +3027,289 @@ describe('tabs', () => {
   });
 });
 
+// ------------------------------------------------------------------ dropdown
+//
+// PLAN §11.10. A floating disclosure, which is a collapse whose region is out
+// of flow — so it is a <details> for the same reason, and works with no script
+// for the same reason.
+//
+// The grid-specific part is the flip. A popup that is nudged away from a
+// viewport edge by a measured distance lands mid-cell; this one is anchored to
+// an edge of its trigger and the flip switches which edge, so every position
+// it can take is on the grid by construction.
+describe('dropdown', () => {
+  async function closeAll() {
+    await page.evaluate(() => {
+      for (const el of document.querySelectorAll('details.dropdown[open]')) {
+        window.Webterm.getOrCreate('dropdown', el).hide();
+      }
+      window.scrollTo(0, 0);
+    });
+  }
+
+  test('the menu is --cells wide and sits on the grid under the trigger', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      const d = window.Webterm.getOrCreate('dropdown', el);
+      // The demo page is long, and a trigger below the fold has no room below
+      // it — flipping there is right, so the unflipped case is measured where
+      // the trigger can actually be seen.
+      el.scrollIntoView({ block: 'center' });
+      d.show();
+      const menu = el.querySelector(':scope > .dropdown-menu');
+      const summary = el.querySelector(':scope > summary');
+      const screen = document.querySelector('.screen');
+      const m = menu.getBoundingClientRect();
+      const s = summary.getBoundingClientRect();
+      const g = screen.getBoundingClientRect();
+      return {
+        cells: Number(getComputedStyle(menu).getPropertyValue('--cells')),
+        w: m.width,
+        h: m.height,
+        dx: m.x - g.x,
+        gap: m.y - s.bottom,
+        up: el.classList.contains('dropdown-up'),
+        end: el.classList.contains('dropdown-end'),
+      };
+    });
+    assert.ok(Math.abs(r.w - r.cells * cell.ch) < TOL, `${r.w}px for ${r.cells} cells`);
+    assert.ok(offGrid(r.h, cell.lh) < TOL, `the menu is ${r.h}px tall`);
+    assert.ok(offGrid(r.dx, cell.ch) < TOL, `the menu starts +${r.dx}px into the screen`);
+    assert.ok(Math.abs(r.gap) < TOL, `the menu is ${r.gap}px below its trigger rather than against it`);
+    assert.equal(r.up, false, 'a dropdown with room below it flipped up');
+    assert.equal(r.end, false);
+    await closeAll();
+  });
+
+  test('the whole menu, border included, stays on the grid', async () => {
+    await closeAll();
+    await page.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      el.scrollIntoView({ block: 'center' });
+      window.Webterm.getOrCreate('dropdown', el).show();
+    });
+    const found = await rects(page, '#dd-actions .dropdown-menu, #dd-actions .menu > *');
+    const bad = found.filter((r) => offGrid(r.w, cell.ch) >= TOL || offGrid(r.h, cell.lh) >= TOL);
+    assert.deepEqual(bad.map((r) => `${describeRect(r)} ${r.w}x${r.h}`), []);
+    await closeAll();
+  });
+
+  // The two flips, each measured where it actually triggers rather than in the
+  // middle of the page where nothing overflows.
+  test('a trigger at the bottom of the viewport flips the menu up', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      const d = window.Webterm.getOrCreate('dropdown', el);
+      el.scrollIntoView({ block: 'end' });
+      d.show();
+      const menu = el.querySelector(':scope > .dropdown-menu');
+      const summary = el.querySelector(':scope > summary');
+      const m = menu.getBoundingClientRect();
+      const s = summary.getBoundingClientRect();
+      const out = {
+        up: el.classList.contains('dropdown-up'),
+        gap: s.top - m.bottom,
+        top: m.top,
+        bottom: m.bottom,
+        viewport: document.documentElement.clientHeight,
+      };
+      d.hide();
+      window.scrollTo(0, 0);
+      return out;
+    });
+    assert.equal(r.up, true, 'the menu stayed below a trigger at the bottom of the viewport');
+    assert.ok(Math.abs(r.gap) < TOL, `the flipped menu is ${r.gap}px above its trigger`);
+    assert.ok(r.top >= -TOL, `the flipped menu starts at ${r.top}px, above the viewport`);
+  });
+
+  test('a trigger at the right of the screen flips the menu to the end', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#dd-right');
+      const d = window.Webterm.getOrCreate('dropdown', el);
+      d.show();
+      const menu = el.querySelector(':scope > .dropdown-menu');
+      const summary = el.querySelector(':scope > summary');
+      const m = menu.getBoundingClientRect();
+      const s = summary.getBoundingClientRect();
+      const out = {
+        end: el.classList.contains('dropdown-end'),
+        right: m.right - s.right,
+        left: m.left,
+        overRight: m.right - document.documentElement.clientWidth,
+      };
+      d.hide();
+      return out;
+    });
+    assert.equal(r.end, true, 'a menu wider than the room beside it did not flip');
+    assert.ok(Math.abs(r.right) < TOL, `the flipped menu's right edge is ${r.right}px from the trigger's`);
+    assert.ok(r.overRight <= TOL, `the flipped menu still overflows by ${r.overRight}px`);
+    assert.ok(r.left >= -TOL, `the flipped menu starts at ${r.left}px`);
+  });
+
+  test('opening one dropdown closes the other', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const a = document.querySelector('#dd-actions');
+      const b = document.querySelector('#dd-other');
+      const da = window.Webterm.getOrCreate('dropdown', a);
+      const db = window.Webterm.getOrCreate('dropdown', b);
+      da.show();
+      const first = [a.open, b.open];
+      db.show();
+      const second = [a.open, b.open];
+      db.hide();
+      return { first, second };
+    });
+    assert.deepEqual(r.first, [true, false]);
+    assert.deepEqual(r.second, [false, true], 'two dropdowns were open at once');
+  });
+
+  test('Escape closes it and gives focus back to the trigger', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      const d = window.Webterm.getOrCreate('dropdown', el);
+      const summary = el.querySelector(':scope > summary');
+      d.show();
+      el.querySelector('.menu > *').focus({ preventScroll: true });
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      return { open: el.open, focused: document.activeElement === summary };
+    });
+    assert.equal(r.open, false, 'Escape did not close the dropdown');
+    assert.equal(r.focused, true, 'focus was left inside a closed dropdown');
+  });
+
+  test('a click outside closes it and a click inside does not', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      const d = window.Webterm.getOrCreate('dropdown', el);
+      d.show();
+      el.querySelector('.menu > *').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      const inside = el.open;
+      document.querySelector('h1').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      const outside = el.open;
+      d.hide();
+      return { inside, outside };
+    });
+    assert.equal(r.inside, true, 'a click on a menu item closed the menu before it could act');
+    assert.equal(r.outside, false, 'a click outside left the dropdown open');
+  });
+
+  test('the keyboard opens it and roves the items', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      const d = window.Webterm.getOrCreate('dropdown', el);
+      const summary = el.querySelector(':scope > summary');
+      const items = [...el.querySelectorAll('.menu > *')];
+      const key = (target, k) => target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+
+      summary.focus({ preventScroll: true });
+      key(summary, 'ArrowDown');
+      const opened = { open: el.open, at: items.indexOf(document.activeElement) };
+      key(document.activeElement, 'ArrowDown');
+      const next = items.indexOf(document.activeElement);
+      key(document.activeElement, 'End');
+      const end = items.indexOf(document.activeElement);
+      key(document.activeElement, 'Home');
+      const home = items.indexOf(document.activeElement);
+      key(document.activeElement, 'ArrowUp');
+      const wrap = items.indexOf(document.activeElement);
+      d.hide();
+      return { opened, next, end, home, wrap, count: items.length };
+    });
+    assert.equal(r.opened.open, true, 'ArrowDown on the trigger did not open the menu');
+    assert.equal(r.opened.at, 0, 'ArrowDown did not focus the first item');
+    assert.equal(r.next, 1);
+    assert.equal(r.end, r.count - 1);
+    assert.equal(r.home, 0);
+    assert.equal(r.wrap, r.count - 1, 'ArrowUp on the first item must wrap to the last');
+  });
+
+  test('the trigger says it has a popup and the menu has the menu roles', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      window.Webterm.getOrCreate('dropdown', el);
+      return {
+        haspopup: el.querySelector(':scope > summary').getAttribute('aria-haspopup'),
+        menu: el.querySelector('.menu').getAttribute('role'),
+        items: [...new Set([...el.querySelectorAll('.menu > *')].map((i) => i.getAttribute('role')))],
+      };
+    });
+    assert.equal(r.haspopup, 'menu');
+    assert.equal(r.menu, 'menu');
+    assert.deepEqual(r.items, ['menuitem']);
+  });
+
+  test('the four lifecycle events fire in order and show is cancelable', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      const d = window.Webterm.getOrCreate('dropdown', el);
+      const log = [];
+      const types = ['wt:dropdown:show', 'wt:dropdown:shown', 'wt:dropdown:hide', 'wt:dropdown:hidden'];
+      const handler = (e) => log.push(e.type);
+      for (const t of types) el.addEventListener(t, handler);
+      d.show();
+      d.hide();
+      for (const t of types) el.removeEventListener(t, handler);
+
+      const block = (e) => e.preventDefault();
+      el.addEventListener('wt:dropdown:show', block);
+      d.show();
+      const blocked = el.open;
+      el.removeEventListener('wt:dropdown:show', block);
+      d.hide();
+      return { log, blocked };
+    });
+    assert.deepEqual(r.log, ['wt:dropdown:show', 'wt:dropdown:shown', 'wt:dropdown:hide', 'wt:dropdown:hidden']);
+    assert.equal(r.blocked, false, 'a prevented show opened the dropdown anyway');
+  });
+
+  test('the menu takes its z-index from the scale, above the status bar', async () => {
+    const r = await page.evaluate(() => {
+      const menu = document.querySelector('#dd-actions .dropdown-menu');
+      const s = getComputedStyle(document.documentElement);
+      return {
+        z: getComputedStyle(menu).zIndex,
+        want: s.getPropertyValue('--wt-z-dropdown').trim(),
+        statusbar: Number(s.getPropertyValue('--wt-z-statusbar').trim()),
+      };
+    });
+    assert.equal(r.z, r.want);
+    assert.ok(Number(r.want) > r.statusbar, `a dropdown at ${r.want} cannot paint over a status bar at ${r.statusbar}`);
+  });
+
+  // §11.1: the browser's own disclosure, with the module never loaded.
+  test('it still opens with scripts disabled', async () => {
+    const ctx = await browser.newContext({
+      deviceScaleFactor: 1,
+      viewport: { width: 1280, height: 1024 },
+      javaScriptEnabled: false,
+    });
+    const quiet = await ctx.newPage();
+    await quiet.goto(`${server.origin}/test/behavior.html`);
+    await quiet.waitForTimeout(200);
+    const c = await cellSize(quiet);
+    await quiet.click('#dd-actions > summary');
+    const r = await quiet.evaluate(() => {
+      const el = document.querySelector('#dd-actions');
+      const menu = el.querySelector(':scope > .dropdown-menu');
+      const m = menu.getBoundingClientRect();
+      return { open: el.open, w: m.width, h: m.height, visible: getComputedStyle(menu).display !== 'none' };
+    });
+    assert.equal(r.open, true, 'the dropdown did not open without the module');
+    assert.equal(r.visible, true, 'the menu is hidden with no script to show it');
+    assert.ok(offGrid(r.w, c.ch) < TOL, `the static menu is ${r.w}px wide`);
+    assert.ok(offGrid(r.h, c.lh) < TOL, `the static menu is ${r.h}px tall`);
+    await ctx.close();
+  });
+});
+
 describe('no-script', () => {
   // §11.1: the CSS is a whole framework on its own. The static page has to
   // render and stay on the grid with the module never loaded.
@@ -3011,7 +3323,7 @@ describe('no-script', () => {
     await quiet.goto(`${server.origin}/test/behavior.html`);
     await quiet.waitForTimeout(200);
     const c = await cellSize(quiet);
-    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area, .toast, .collapse, .collapse-body, .tabs, .tabs-panels, .tab-panel');
+    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area, .toast, .collapse, .collapse-body, .tabs, .tabs-panels, .tab-panel, .dropdown-menu');
     assert.ok(found.length > 0, 'nothing rendered without script');
     const bad = found.filter((r) => offGrid(r.w, c.ch) >= TOL || offGrid(r.h, c.lh) >= TOL);
     assert.deepEqual(bad.map((r) => `${describeRect(r)} ${r.w}x${r.h}`), []);

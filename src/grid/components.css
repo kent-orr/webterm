@@ -691,3 +691,51 @@ dialog.modal > .backdrop {
   height: calc(var(--rows, 0) * 1lh);
   overflow: hidden;
 }
+
+/*
+ * ------------------------------------------------------------------ dropdown
+ *
+ * PLAN §11.10. A collapse whose region is out of flow, which is why it is the
+ * same element: a <details> that opens and closes with no script at all.
+ *
+ * Every position the menu can take is anchored to an *edge* of the trigger —
+ * `top: 100%`, `bottom: 100%`, `left: 0`, `right: 0` — and never offset by a
+ * computed distance. So it lands directly against a trigger of any height
+ * without this file knowing what that height is, and the behavior layer's edge
+ * flip is a change of anchor rather than a measured nudge: there is no value
+ * it could get wrong by a fraction of a cell.
+ */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.dropdown > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: calc(var(--cells, 20) * 1ch);
+
+  /* A popup covers the text under it: opaque, and above the status bar. */
+  background: var(--bg);
+  z-index: var(--wt-z-dropdown);
+}
+
+.dropdown-up > .dropdown-menu {
+  top: auto;
+  bottom: 100%;
+}
+
+.dropdown-end > .dropdown-menu {
+  left: auto;
+  right: 0;
+}

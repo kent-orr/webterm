@@ -382,6 +382,55 @@ echo      replica  0.12  ok</pre>
     </div>
   </div>
 
+  <h2 class="mt-2">Dropdown</h2>
+  <p>The same disclosure as a collapse, floating instead of in flow. It is
+  anchored to an edge of its trigger rather than offset by a measured distance,
+  so the flip near a viewport edge is a change of anchor and cannot land
+  mid-cell.</p>
+
+  <p class="mt-1">
+    <details class="dropdown" id="dd-actions">
+      <summary class="btn">actions</summary>
+      <div class="box dropdown-menu" style="--cells: 24">
+        <span class="box-edge"></span>
+        <div class="menu">
+          <a href="#dd-restart">restart</a>
+          <a href="#dd-drain">drain</a>
+          <a href="#dd-promote">promote</a>
+        </div>
+      </div>
+    </details>
+    <details class="dropdown" id="dd-other">
+      <summary class="btn">other</summary>
+      <div class="box dropdown-menu" style="--cells: 20">
+        <span class="box-edge"></span>
+        <div class="menu">
+          <a href="#dd-alpha">alpha</a>
+          <a href="#dd-bravo">bravo</a>
+        </div>
+      </div>
+    </details>
+  </p>
+
+  <h3 class="mt-2">At the edges</h3>
+  <p>Pushed against the right of the screen, so the menu is wider than the room
+  left of it and has to flip.</p>
+  <div class="row mt-1">
+    <div class="col"></div>
+    <div class="col-16">
+      <details class="dropdown" id="dd-right">
+        <summary class="btn">right</summary>
+        <div class="box dropdown-menu" style="--cells: 24">
+          <span class="box-edge"></span>
+          <div class="menu">
+            <a href="#dd-r1">restart</a>
+            <a href="#dd-r2">drain</a>
+          </div>
+        </div>
+      </details>
+    </div>
+  </div>
+
   <div class="statusbar statusbar-fixed">
     <span>webterm</span>
     <span class="spacer"></span>

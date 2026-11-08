@@ -33,6 +33,9 @@
   /* The stacking order, lowest first. A component never invents its own. */
   --wt-z-content: 0;
   --wt-z-statusbar: 10;
+  /* A dropdown is above the status bar, because a dropdown in a status bar is
+     most of what a status bar is for. */
+  --wt-z-dropdown: 15;
   --wt-z-toast: 20;
   --wt-z-backdrop: 30;
   --wt-z-modal: 31;
