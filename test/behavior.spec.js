@@ -567,6 +567,419 @@ describe('scroll lock', () => {
   });
 });
 
+/* ------------------------------------------------------- phase 1: loading */
+
+// The frame sets are the interesting constraint. The braille spinner is the
+// one every terminal tool uses (ora, cli-spinners, every Rust CLI), and it is
+// double-width in two of the three bundled fonts — 12px in a 10px cell for
+// JetBrains Mono and DejaVu Sans Mono, correct only in Iosevka. So are the
+// arc, circle and triangle spinners, each in a different subset of the fonts.
+// What survives all three is ASCII plus U+2500-259F, which is exactly the
+// range the README guarantees the bundled fonts cover in full. These two tests
+// are what keep a tempting charset out.
+describe('frame sets', () => {
+  const FONTS = ['font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
+  const SETS = ['line', 'quad', 'half', 'bar', 'shade'];
+
+  test('glyphs.css declares a frame run for every shipped spinner', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'src', 'grid', 'glyphs.css'), 'utf8');
+    const components = fs.readFileSync(path.join(ROOT, 'src', 'grid', 'components.css'), 'utf8');
+    for (const name of SETS) {
+      assert.match(css, new RegExp(`--wt-frames-${name}:`), `glyphs.css has no --wt-frames-${name}`);
+      assert.match(components, new RegExp(`\\.spin-${name}\\b`), `components.css has no .spin-${name}`);
+    }
+  });
+
+  test('a frame run uses only ascii and U+2500-259F', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'src', 'grid', 'glyphs.css'), 'utf8');
+    const bad = [];
+    for (const m of css.matchAll(/--wt-frames-([a-z]+):\s*"((?:[^"\\]|\\.)*)"/g)) {
+      for (const c of [...m[2]]) {
+        const cp = c.codePointAt(0);
+        const ok = (cp >= 0x20 && cp < 0x7f) || (cp >= 0x2500 && cp <= 0x259f);
+        if (!ok) bad.push(`${m[1]}: ${c} U+${cp.toString(16).toUpperCase()}`);
+      }
+    }
+    assert.deepEqual(bad, []);
+  });
+
+  for (const font of FONTS) {
+    test(`every frame glyph is exactly one cell in ${font}`, async () => {
+      const result = await page.evaluate(async (f) => {
+        const previous = document.documentElement.className;
+        document.documentElement.className = f;
+        await document.fonts.ready;
+        const probe = document.createElement('span');
+        probe.className = 'wt-probe';
+        document.body.append(probe);
+        probe.textContent = '';
+        const root = getComputedStyle(document.documentElement);
+        // The cell for this font, measured the same way cells.js does.
+        const stick = document.createElement('div');
+        stick.className = 'wt-probe';
+        document.body.append(stick);
+        const ch = stick.getBoundingClientRect().width / 100;
+        stick.remove();
+
+        const measure = document.createElement('span');
+        measure.className = 'pre';
+        measure.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+        document.body.append(measure);
+        const out = {};
+        for (const name of ['line', 'quad', 'half', 'bar', 'shade']) {
+          const run = root.getPropertyValue(`--wt-frames-${name}`).trim().replace(/^"|"$/g, '');
+          const glyphs = [...run.replace(/\\\\/g, '\\')];
+          out[name] = { count: glyphs.length, bad: [] };
+          for (const g of glyphs) {
+            measure.textContent = g.repeat(20);
+            const w = measure.getBoundingClientRect().width / 20;
+            if (Math.abs(w - ch) > 0.02) out[name].bad.push(`${g}=${w.toFixed(3)} (cell ${ch.toFixed(3)})`);
+          }
+        }
+        measure.remove();
+        probe.remove();
+        document.documentElement.className = previous;
+        await document.fonts.ready;
+        return out;
+      }, font);
+
+      const problems = [];
+      for (const [name, info] of Object.entries(result)) {
+        if (info.count === 0) problems.push(`${name}: run is empty`);
+        for (const b of info.bad) problems.push(`${name}: ${b}`);
+      }
+      assert.deepEqual(problems, []);
+    });
+  }
+
+  test('each spinner class declares a frame count matching its run', async () => {
+    const result = await page.evaluate(() => {
+      const out = {};
+      for (const name of ['line', 'quad', 'half', 'bar', 'shade']) {
+        const el = document.createElement('span');
+        el.className = `spin spin-${name}`;
+        document.body.append(el);
+        const s = getComputedStyle(el);
+        const run = s.getPropertyValue('--wt-frames').trim().replace(/^"|"$/g, '');
+        out[name] = {
+          declared: Number(s.getPropertyValue('--wt-frame-count')),
+          actual: [...run.replace(/\\\\/g, '\\')].length,
+        };
+        el.remove();
+      }
+      return out;
+    });
+    const bad = Object.entries(result)
+      .filter(([, v]) => v.declared !== v.actual)
+      .map(([k, v]) => `${k}: --wt-frame-count ${v.declared}, run has ${v.actual}`);
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('spinner', () => {
+  test('a spinner is one cell by one row', async () => {
+    const found = await rects(page, '.spin');
+    assert.ok(found.length > 0, 'no .spin on the page');
+    const bad = found.filter((r) => Math.abs(r.w - cell.ch) >= TOL || Math.abs(r.h - cell.lh) >= TOL);
+    assert.deepEqual(bad.map((r) => `${describeRect(r)} ${r.w}x${r.h}`), []);
+  });
+
+  // The frame window is one cell wide over a run of frames, translated a whole
+  // cell per step (the trick box.css uses for borders). Sampled over real
+  // frames: a stepped animation is on a cell boundary at every instant, and an
+  // eased one would not be.
+  test('the frame window sits on a cell boundary at every sampled frame', async () => {
+    const samples = await page.evaluate(async () => {
+      const el = document.querySelector('.spin');
+      const out = [];
+      for (let i = 0; i < 24; i += 1) {
+        await new Promise((r) => requestAnimationFrame(r));
+        const host = el.getBoundingClientRect();
+        // The run is the ::before box; its offset shows through as the
+        // element's first child box, so read the transform directly.
+        const t = new DOMMatrixReadOnly(getComputedStyle(el, '::before').transform);
+        out.push({ x: t.m41, host: host.x });
+      }
+      return out;
+    });
+    assert.ok(samples.length === 24);
+    const bad = samples.filter((s) => offGrid(s.x, cell.ch) >= TOL);
+    assert.deepEqual(bad.map((s) => `${s.x}px (${(s.x / cell.ch).toFixed(3)} cells)`), []);
+  });
+
+  test('a spinner actually advances', async () => {
+    const moved = await page.evaluate(async () => {
+      const el = document.querySelector('.spin');
+      const read = () => new DOMMatrixReadOnly(getComputedStyle(el, '::before').transform).m41;
+      const seen = new Set();
+      for (let i = 0; i < 40; i += 1) {
+        await new Promise((r) => requestAnimationFrame(r));
+        seen.add(read());
+      }
+      return seen.size;
+    });
+    assert.ok(moved > 1, 'the spinner never moved');
+  });
+
+  test('motion off freezes the spinner on its first frame', async () => {
+    const result = await page.evaluate(async () => {
+      document.documentElement.dataset.wtMotion = 'off';
+      const el = document.querySelector('.spin');
+      const read = () => new DOMMatrixReadOnly(getComputedStyle(el, '::before').transform).m41;
+      await new Promise((r) => requestAnimationFrame(r));
+      const a = read();
+      const name = getComputedStyle(el, '::before').animationName;
+      for (let i = 0; i < 10; i += 1) await new Promise((r) => requestAnimationFrame(r));
+      const b = read();
+      delete document.documentElement.dataset.wtMotion;
+      return { a, b, name };
+    });
+    assert.equal(result.name, 'none', 'the spinner keeps animating with motion off');
+    assert.equal(result.a, result.b);
+    assert.equal(result.a, 0, 'a frozen spinner must show its first frame');
+  });
+});
+
+describe('progress', () => {
+  test('an indeterminate bar is a whole number of cells at every sampled frame', async () => {
+    const samples = await page.evaluate(async () => {
+      const track = document.querySelector('.progress-indeterminate');
+      const bar = track.querySelector('.bar');
+      const out = [];
+      for (let i = 0; i < 24; i += 1) {
+        await new Promise((r) => requestAnimationFrame(r));
+        const t = track.getBoundingClientRect();
+        const b = bar.getBoundingClientRect();
+        out.push({ dx: b.x - t.x, w: b.width });
+      }
+      return out;
+    });
+    const bad = samples.filter((s) => offGrid(s.dx, cell.ch) >= TOL || offGrid(s.w, cell.ch) >= TOL);
+    assert.deepEqual(bad.map((s) => `+${s.dx.toFixed(2)}px w=${s.w}`), []);
+  });
+
+  test('an indeterminate bar marches', async () => {
+    const seen = await page.evaluate(async () => {
+      const bar = document.querySelector('.progress-indeterminate .bar');
+      const out = new Set();
+      for (let i = 0; i < 40; i += 1) {
+        await new Promise((r) => requestAnimationFrame(r));
+        out.add(Math.round(bar.getBoundingClientRect().x));
+      }
+      return out.size;
+    });
+    assert.ok(seen > 1, 'the indeterminate bar never moved');
+  });
+
+  test('a progress label is a fixed four cells, right aligned', async () => {
+    const found = await rects(page, '.progress-label');
+    assert.ok(found.length > 0, 'no .progress-label on the page');
+    for (const r of found) {
+      assert.ok(Math.abs(r.w - 4 * cell.ch) < TOL, `label is ${r.w}px, expected 4 cells`);
+    }
+    const align = await page.$eval('.progress-label', (el) => getComputedStyle(el).textAlign);
+    assert.equal(align, 'right');
+  });
+
+  // The rounding rule (PLAN §11.4): floor, except never 0 while value > 0 and
+  // never full until value === max, so a bar cannot lie in either direction.
+  test('a fill is always a whole number of cells inside the track', async () => {
+    const bad = await page.evaluate(() => {
+      const el = document.querySelector('#prog-determinate');
+      const p = window.Webterm.getOrCreate('progress', el);
+      const cells = Number(getComputedStyle(el).getPropertyValue('--cells'));
+      const problems = [];
+      let seed = 7;
+      const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+      for (let i = 0; i < 200; i += 1) {
+        const max = 1 + Math.floor(rand() * 500);
+        const value = rand() * max;
+        p.set(value, max);
+        const fill = Number(getComputedStyle(el).getPropertyValue('--fill'));
+        const label = `${value.toFixed(2)}/${max} -> ${fill}`;
+        if (!Number.isInteger(fill)) problems.push(`${label}: not an integer`);
+        if (fill < 0 || fill > cells) problems.push(`${label}: outside 0..${cells}`);
+        if (value > 0 && fill === 0) problems.push(`${label}: empty while value > 0`);
+        if (value < max && fill === cells) problems.push(`${label}: full before value === max`);
+      }
+      p.set(1, 1);
+      if (Number(getComputedStyle(el).getPropertyValue('--fill')) !== cells) problems.push('value === max is not full');
+      p.set(0, 1);
+      if (Number(getComputedStyle(el).getPropertyValue('--fill')) !== 0) problems.push('zero is not empty');
+      return problems.slice(0, 10);
+    });
+    assert.deepEqual(bad, []);
+  });
+
+  test('a progress element carries its aria state', async () => {
+    const aria = await page.evaluate(() => {
+      const el = document.querySelector('#prog-determinate');
+      const p = window.Webterm.getOrCreate('progress', el);
+      p.set(3, 8);
+      return {
+        role: el.getAttribute('role'),
+        now: el.getAttribute('aria-valuenow'),
+        min: el.getAttribute('aria-valuemin'),
+        max: el.getAttribute('aria-valuemax'),
+        indeterminate: document.querySelector('.progress-indeterminate').hasAttribute('aria-valuenow'),
+      };
+    });
+    assert.equal(aria.role, 'progressbar');
+    assert.equal(aria.now, '3');
+    assert.equal(aria.min, '0');
+    assert.equal(aria.max, '8');
+    assert.equal(aria.indeterminate, false, 'an indeterminate bar must not claim a value');
+  });
+
+  // A server-rendered update (htmx, Shiny) changes an attribute and nothing
+  // else, so the attribute is the API and no JS has to be written at all.
+  test('data-wt-progress drives the fill, including when it changes', async () => {
+    const result = await page.evaluate(async () => {
+      const el = document.querySelector('#prog-attr');
+      const read = () => Number(getComputedStyle(el).getPropertyValue('--fill'));
+      const initial = read();
+      el.setAttribute('data-wt-progress', '0.5');
+      await new Promise((r) => setTimeout(r, 0));
+      const half = read();
+      el.setAttribute('data-wt-progress', '1');
+      await new Promise((r) => setTimeout(r, 0));
+      const full = read();
+      return { initial, half, full, cells: Number(getComputedStyle(el).getPropertyValue('--cells')) };
+    });
+    assert.equal(result.initial, Math.floor(0.25 * result.cells), 'the initial attribute was not applied');
+    assert.equal(result.half, result.cells / 2);
+    assert.equal(result.full, result.cells);
+  });
+});
+
+describe('loading', () => {
+  test('a loading button keeps its exact width', async () => {
+    const result = await page.evaluate(async () => {
+      const btn = document.querySelector('#load-btn');
+      const before = btn.getBoundingClientRect().width;
+      window.Webterm.setLoading(btn, true);
+      const during = btn.getBoundingClientRect().width;
+      const busy = btn.getAttribute('aria-busy');
+      const spinners = btn.querySelectorAll(':scope > .spin').length;
+      const labelHidden = getComputedStyle(btn.querySelector(':scope > .loading-label')).visibility;
+      window.Webterm.setLoading(btn, false);
+      const after = btn.getBoundingClientRect().width;
+      return {
+        before, during, after, busy, spinners, labelHidden,
+        leftovers: btn.querySelectorAll(':scope > .spin, :scope > .loading-label').length,
+        text: btn.textContent.trim(),
+      };
+    });
+    assert.equal(result.during, result.before, 'the button resized while loading');
+    assert.equal(result.after, result.before, 'the button did not return to its size');
+    assert.equal(result.busy, 'true');
+    assert.equal(result.spinners, 1);
+    assert.equal(result.labelHidden, 'hidden');
+    assert.equal(result.leftovers, 0, 'setLoading(false) left its own nodes behind');
+    assert.equal(result.text, 'save');
+  });
+
+  test('the spinner in a loading element lands on a cell', async () => {
+    const bad = await page.evaluate(() => {
+      const out = [];
+      const probe = document.createElement('div');
+      probe.className = 'wt-probe';
+      document.body.append(probe);
+      const r = probe.getBoundingClientRect();
+      const ch = r.width / 100;
+      const lh = r.height / 100;
+      probe.remove();
+      for (const id of ['#load-btn', '#load-box']) {
+        const host = document.querySelector(id);
+        window.Webterm.setLoading(host, true);
+        const h = host.getBoundingClientRect();
+        const s = host.querySelector(':scope > .spin').getBoundingClientRect();
+        const dx = s.x - h.x;
+        const dy = s.y - h.y;
+        const off = (v, u) => Math.min(((v % u) + u) % u, u - ((v % u) + u) % u);
+        if (off(dx, ch) >= 0.5 || off(dy, lh) >= 0.5) out.push(`${id} at +${dx.toFixed(2)},+${dy.toFixed(2)}`);
+        window.Webterm.setLoading(host, false);
+      }
+      return out;
+    });
+    assert.deepEqual(bad, []);
+  });
+
+  test('a loading box keeps its border and hides only its content', async () => {
+    const result = await page.evaluate(() => {
+      const box = document.querySelector('#load-box');
+      window.Webterm.setLoading(box, true);
+      const out = {
+        edges: box.querySelectorAll(':scope > .box-edge').length,
+        titles: box.querySelectorAll(':scope > .box-title').length,
+        titleWrapped: !!box.querySelector('.loading-label > .box-title'),
+        edgeWrapped: !!box.querySelector('.loading-label > .box-edge'),
+        busy: box.getAttribute('aria-busy'),
+      };
+      window.Webterm.setLoading(box, false);
+      return out;
+    });
+    assert.equal(result.edges, 1, 'the edge span was moved or lost');
+    assert.equal(result.titles, 1);
+    assert.equal(result.titleWrapped, false, 'the title must stay out of the hidden wrapper');
+    assert.equal(result.edgeWrapped, false, 'the edge span must stay out of the hidden wrapper');
+    assert.equal(result.busy, 'true');
+  });
+
+  test('a loading button cannot be pressed again', async () => {
+    const result = await page.evaluate(() => {
+      const btn = document.querySelector('#load-btn');
+      window.Webterm.setLoading(btn, true);
+      const during = btn.disabled;
+      window.Webterm.setLoading(btn, false);
+      return { during, after: btn.disabled };
+    });
+    assert.equal(result.during, true);
+    assert.equal(result.after, false, 'the button stayed disabled');
+  });
+
+  test('setLoading is idempotent', async () => {
+    const result = await page.evaluate(() => {
+      const btn = document.querySelector('#load-btn');
+      window.Webterm.setLoading(btn, true);
+      window.Webterm.setLoading(btn, true);
+      const nodes = btn.querySelectorAll(':scope > .spin, :scope > .loading-label').length;
+      window.Webterm.setLoading(btn, false);
+      window.Webterm.setLoading(btn, false);
+      return { nodes, after: btn.querySelectorAll(':scope > .spin, :scope > .loading-label').length };
+    });
+    assert.equal(result.nodes, 2, 'a second setLoading(true) duplicated nodes');
+    assert.equal(result.after, 0);
+  });
+
+  // §11.1: the loading state has a static form that needs no script.
+  test('a hand-written loading element renders without the module', async () => {
+    const ctx = await browser.newContext({
+      deviceScaleFactor: 1,
+      viewport: { width: 1280, height: 1024 },
+      javaScriptEnabled: false,
+    });
+    const quiet = await ctx.newPage();
+    await quiet.goto(`${server.origin}/test/behavior.html`);
+    await quiet.waitForTimeout(200);
+    const c = await cellSize(quiet);
+    const result = await quiet.evaluate(() => {
+      const el = document.querySelector('#load-static');
+      const label = el.querySelector('.loading-label');
+      const spin = el.querySelector('.spin');
+      return {
+        labelHidden: getComputedStyle(label).visibility,
+        spin: spin.getBoundingClientRect(),
+        host: el.getBoundingClientRect(),
+      };
+    });
+    assert.equal(result.labelHidden, 'hidden');
+    assert.ok(Math.abs(result.spin.width - c.ch) < TOL, `static spinner is ${result.spin.width}px`);
+    assert.ok(offGrid(result.spin.x - result.host.x, c.ch) < TOL, 'static spinner is off the grid');
+    await ctx.close();
+  });
+});
+
 describe('no-script', () => {
   // §11.1: the CSS is a whole framework on its own. The static page has to
   // render and stay on the grid with the module never loaded.
@@ -580,7 +993,7 @@ describe('no-script', () => {
     await quiet.goto(`${server.origin}/test/behavior.html`);
     await quiet.waitForTimeout(200);
     const c = await cellSize(quiet);
-    const found = await rects(quiet, '.box, .statusbar, .shade');
+    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label');
     assert.ok(found.length > 0, 'nothing rendered without script');
     const bad = found.filter((r) => offGrid(r.w, c.ch) >= TOL || offGrid(r.h, c.lh) >= TOL);
     assert.deepEqual(bad.map((r) => `${describeRect(r)} ${r.w}x${r.h}`), []);

@@ -161,9 +161,143 @@
   font-weight: 400;
 }
 
-/* A cell-sized spinner frame set, for pages that animate state by hand. */
+/*
+ * ----------------------------------------------------------------- loading
+ *
+ * PLAN §11.4. All of this animates in CSS and none of it needs the behavior
+ * layer, which is the point: a spinner driven by JS stops spinning exactly
+ * when the main thread is busy, which is the one moment it is there to cover.
+ *
+ * Every animation steps a whole cell on --wt-tick, so a spinner, a marching
+ * bar and a toast typing itself in all move on the same beat.
+ */
+
+/*
+ * A spinner is a one-cell window over a run of frames, translated one cell per
+ * step — the same clip-a-run technique as a box border, because CSS cannot
+ * repeat a glyph a computed number of times and does not need to here.
+ *
+ * To use a frame set of your own, declare both halves:
+ *
+ *   .spin-pulse { --wt-frames: ".oOo"; --wt-frame-count: 4; }
+ *
+ * Every glyph has to be one cell in the font you ship; only ASCII and
+ * U+2500-259F are safe in all three bundled fonts (see glyphs.css).
+ */
 .spin {
+  --wt-frames: var(--wt-frames-line);
+  --wt-frame-count: 4;
+
   display: inline-block;
+  vertical-align: top;
   width: 1ch;
+  height: 1lh;
+  overflow: hidden;
   white-space: pre;
+}
+
+.spin::before {
+  content: var(--wt-frames);
+  display: block;
+  width: max-content;
+  animation:
+    wt-spin
+    calc(var(--wt-frame-count) * var(--wt-tick))
+    steps(var(--wt-frame-count))
+    infinite;
+}
+
+@keyframes wt-spin {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-1ch * var(--wt-frame-count))); }
+}
+
+.spin-line { --wt-frames: var(--wt-frames-line); --wt-frame-count: 4; }
+.spin-quad { --wt-frames: var(--wt-frames-quad); --wt-frame-count: 4; }
+.spin-half { --wt-frames: var(--wt-frames-half); --wt-frame-count: 4; }
+.spin-bar { --wt-frames: var(--wt-frames-bar); --wt-frame-count: 8; }
+.spin-shade { --wt-frames: var(--wt-frames-shade); --wt-frame-count: 4; }
+
+/*
+ * A bar with nothing to report: a short lit run marching the track. It starts
+ * one run-width before the track and ends one track-width along, so it enters
+ * and leaves rather than popping, and the step count matches the cell count it
+ * travels — every frame lands on a cell.
+ */
+.progress-indeterminate {
+  --wt-lit: 4;
+}
+
+.progress-indeterminate > .bar {
+  width: calc(var(--wt-lit) * 1ch);
+  animation:
+    wt-march
+    calc((var(--cells, 24) + var(--wt-lit)) * var(--wt-tick))
+    steps(calc(var(--cells, 24) + var(--wt-lit)))
+    infinite;
+}
+
+@keyframes wt-march {
+  from { transform: translateX(calc(-1ch * var(--wt-lit))); }
+  to { transform: translateX(calc(1ch * var(--cells, 24))); }
+}
+
+/*
+ * A percentage beside a bar, in a fixed four cells so that 9% growing to 100%
+ * does not shove the bar it labels sideways.
+ */
+.progress-label {
+  display: inline-block;
+  vertical-align: top;
+  width: 4ch;
+  height: 1lh;
+  text-align: right;
+  white-space: pre;
+}
+
+/*
+ * The loading state. The content is hidden rather than removed and the host
+ * keeps every cell it had, so a button does not resize under the cursor and a
+ * box does not collapse while it waits.
+ *
+ * The spinner is centered on a *cell*: round() snaps the usual 50% offset down
+ * to the grid, because a 7-cell button centered the ordinary way puts its
+ * spinner on a half cell.
+ *
+ * It needs no script. This is the whole static form:
+ *
+ *   <button class="btn loading">
+ *     <span class="loading-label">save</span>
+ *     <span class="spin spin-quad"></span>
+ *   </button>
+ */
+.loading {
+  position: relative;
+}
+
+.loading > .loading-label {
+  visibility: hidden;
+}
+
+.loading > .spin {
+  position: absolute;
+  top: round(down, calc(50% - 0.5lh), 1lh);
+  left: round(down, calc(50% - 0.5ch), 1ch);
+}
+
+/*
+ * Rule 6 of §11.2: reduced motion is the final state, not a faster animation.
+ * A frozen spinner shows its first frame, and a marching bar parks at the
+ * start of its track rather than disappearing.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .spin::before,
+  .progress-indeterminate > .bar {
+    animation: none;
+  }
+}
+
+[data-wt-motion="off"] .spin::before,
+[data-wt-motion="off"] .progress-indeterminate > .bar {
+  animation: none;
 }

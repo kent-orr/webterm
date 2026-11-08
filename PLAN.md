@@ -569,8 +569,20 @@ spinner that stops when the main thread is busy.
 - `.spin` gains real frames with the same trick the borders use: a `1ch`
   window clipping a horizontal run of frame glyphs, translated `1ch` per step
   by a `steps(N)` animation. Frame sets as tokens, selected by class:
-  `.spin-line` (`|/-\`), `.spin-dots` (braille `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`), `.spin-arc`
-  (`◜◝◞◟`), `.spin-bar` (`▁▂▃▄▅▆▇█`).
+  `.spin-line` (`|/-\`), `.spin-quad` (`▖▘▝▗`), `.spin-half` (`▌▀▐▄`),
+  `.spin-bar` (`▁▂▃▄▅▆▇█`) and `.spin-shade` (`░▒▓█`).
+
+  **Braille is not among them, and that is a measurement.** The braille
+  spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) is what every terminal tool uses — ora, cli-spinners,
+  most Rust CLIs — and it is 12px wide in a 10px cell in JetBrains Mono and
+  DejaVu Sans Mono. It is correct only in Iosevka. The arc (`◜◝◞◟`), circle
+  (`◐◓◑◒`) and triangle (`▲▶▼◀`) sets each fail in a different subset of
+  the three fonts. What lands on a cell in all of them is ASCII plus
+  U+2500–259F, which is exactly the range the README already guarantees the
+  bundled fonts cover in full — the same range the borders need, and for the
+  same reason (§4.7). So that is the rule for a frame set, and
+  `behavior.spec.js` enforces it twice: a lint on the run itself, and a
+  measurement of every glyph against `1ch` in each of the three fonts.
 - `.loading` on a `.btn` or `.box` sets `aria-busy`, dims the content and
   centers a spinner **inside the same cell count**, so nothing reflows while
   it waits.

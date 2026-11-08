@@ -94,6 +94,67 @@
     <button class="btn" id="shade-none">none</button>
   </p>
 
+  <h2 class="mt-2">Loading</h2>
+  <p>Every indicator here animates in CSS. A spinner driven by JavaScript stops
+  spinning exactly when the main thread is busy, which is the one moment it is
+  there to cover.</p>
+
+  <h3 class="mt-2">Spinners</h3>
+  <dl class="kv mt-1">
+    <dt>line</dt><dd><span class="spin spin-line"></span> <span class="dim">|/-\</span></dd>
+    <dt>quad</dt><dd><span class="spin spin-quad"></span> <span class="dim">▖▘▝▗</span></dd>
+    <dt>half</dt><dd><span class="spin spin-half"></span> <span class="dim">▌▀▐▄</span></dd>
+    <dt>bar</dt><dd><span class="spin spin-bar"></span> <span class="dim">▁▂▃▄▅▆▇█</span></dd>
+    <dt>shade</dt><dd><span class="spin spin-shade"></span> <span class="dim">░▒▓█</span></dd>
+  </dl>
+  <p class="mt-1 dim">Braille is missing from this list on purpose: it is
+  double-width in JetBrains Mono and DejaVu Sans Mono, so it would break the
+  grid in two of the three bundled fonts.</p>
+
+  <h3 class="mt-2">Progress</h3>
+  <div class="kv mt-1">
+    <dl class="kv">
+      <dt>determinate</dt>
+      <dd>
+        <span class="progress" id="prog-determinate" style="--cells: 24; --fill: 0"><span class="bar"></span></span>
+        <span class="progress-label" id="prog-pct">0%</span>
+      </dd>
+      <dt>attribute</dt>
+      <dd>
+        <span class="progress" id="prog-attr" data-wt-progress="0.25" style="--cells: 24; --fill: 0"><span class="bar"></span></span>
+        <span class="dim">data-wt-progress</span>
+      </dd>
+      <dt>indeterminate</dt>
+      <dd>
+        <span class="progress progress-indeterminate progress-info" style="--cells: 24"><span class="bar"></span></span>
+      </dd>
+    </dl>
+  </div>
+  <p class="mt-1">
+    <button class="btn" id="prog-step">+7%</button>
+    <button class="btn" id="prog-reset">reset</button>
+  </p>
+
+  <h3 class="mt-2">Loading state</h3>
+  <p>The content is hidden rather than removed, so nothing resizes while it
+  waits, and the spinner is snapped to a whole cell rather than centered on a
+  half one.</p>
+  <p class="mt-1">
+    <button class="btn" id="load-btn">save</button>
+    <button class="btn" id="load-toggle">toggle</button>
+    <button class="btn loading" id="load-static">
+      <span class="loading-label">static</span>
+      <span class="spin spin-quad" aria-hidden="true"></span>
+    </button>
+  </p>
+  <div class="box mt-1" id="load-box">
+    <span class="box-edge"></span>
+    <span class="box-title">hosts</span>
+    <p>alpha, bravo, charlie</p>
+    <p>Three replicas, all caught up.</p>
+  </div>
+  <p class="mt-1"><button class="btn" id="load-box-toggle">toggle box</button></p>
+
   <h3 class="mt-2">Scroll lock</h3>
   <p>Locking page scroll must not change the column count: without a stable
   scrollbar gutter the screen rounds up a column and the whole page reflows
@@ -167,6 +228,27 @@ $('#shade-light').addEventListener('click', () => { shade.className = 'shade sha
 $('#shade-medium').addEventListener('click', () => { shade.className = 'shade'; });
 $('#shade-heavy').addEventListener('click', () => { shade.className = 'shade shade-heavy'; });
 $('#shade-none').addEventListener('click', () => { shade.className = 'shade shade-off'; });
+
+const bar = Webterm.getOrCreate('progress', $('#prog-determinate'));
+let pct = 0;
+function showPct() {
+  bar.setFraction(pct);
+  $('#prog-pct').textContent = Math.round(pct * 100) + '%';
+}
+$('#prog-step').addEventListener('click', () => {
+  pct = pct >= 1 ? 0 : Math.min(1, pct + 0.07);
+  showPct();
+});
+$('#prog-reset').addEventListener('click', () => { pct = 0; showPct(); });
+
+$('#load-toggle').addEventListener('click', () => {
+  const btn = $('#load-btn');
+  Webterm.setLoading(btn, !Webterm.isLoading(btn));
+});
+$('#load-box-toggle').addEventListener('click', () => {
+  const box = $('#load-box');
+  Webterm.setLoading(box, !Webterm.isLoading(box));
+});
 
 $('#lock').addEventListener('click', () => {
   Webterm.lockScroll();

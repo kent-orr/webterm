@@ -57,4 +57,25 @@
   --wt-fill-med: var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8);
   --wt-fill-dark-x8: var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark);
   --wt-fill-dark: var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8);
+
+  /*
+   * Spinner frame runs (PLAN §11.4). A spinner is a 1ch window over one of
+   * these, translated a whole cell per step — the same clip-a-run trick the
+   * borders use, which is why it needs no JS.
+   *
+   * Only ASCII and U+2500-259F appear here, and that is a measurement rather
+   * than a preference. The braille spinner every terminal tool uses (ora,
+   * cli-spinners) is 12px wide in a 10px cell in JetBrains Mono and DejaVu
+   * Sans Mono — correct only in Iosevka — and the arc, circle and triangle
+   * sets each fail in a different subset of the three. U+2500-259F is the
+   * range the bundled fonts cover in full, and the only one where a frame
+   * lands on a cell in all three. behavior.spec.js measures every glyph here
+   * against 1ch in each font, so a tempting addition fails a test rather than
+   * silently breaking the grid.
+   */
+  --wt-frames-line: "|/-\\";
+  --wt-frames-quad: "▖▘▝▗";
+  --wt-frames-half: "▌▀▐▄";
+  --wt-frames-bar: "▁▂▃▄▅▆▇█";
+  --wt-frames-shade: "░▒▓█";
 }

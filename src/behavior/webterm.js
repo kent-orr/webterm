@@ -17,6 +17,7 @@
 import * as cells from './lib/cells.js';
 import * as motion from './lib/motion.js';
 import { createBox, ensureEdge, boxTitle } from './lib/box.js';
+import { Progress, fillCells, setLoading, isLoading } from './progress.js';
 
 export const version = '0.1.0';
 
@@ -35,6 +36,7 @@ export const config = {
 };
 
 export { cells, motion, createBox, ensureEdge, boxTitle };
+export { Progress, fillCells, setLoading, isLoading };
 
 /* ------------------------------------------------------------------ events */
 
@@ -181,6 +183,10 @@ export function scrollLocks() {
 
 /* -------------------------------------------------------------------- boot */
 
+/* ------------------------------------------------------------- components */
+
+register('progress', Progress);
+
 const api = {
   version,
   config,
@@ -197,6 +203,10 @@ const api = {
   lockScroll,
   unlockScroll,
   scrollLocks,
+  Progress,
+  fillCells,
+  setLoading,
+  isLoading,
 };
 
 if (typeof window !== 'undefined') {
