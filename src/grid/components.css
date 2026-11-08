@@ -664,6 +664,21 @@ dialog.modal > .backdrop {
  * property on the element it was handed, and the clamp inherits it (PLAN
  * §11.2 rule 4 — a unitless custom property, never a px).
  */
+/*
+ * flow-root, which is not decoration. The clamp below is `overflow: hidden`,
+ * and that establishes a block formatting context — so a child's top margin
+ * that collapsed *through* the body while it was unclamped is contained the
+ * moment the animation starts, and the content becomes a row taller than the
+ * height that was measured off the resting box. The last row is then clipped
+ * for the whole open and snaps into place when the clamp lifts. A body that
+ * is always a formatting context measures the same in both states, and it
+ * keeps overflow visible at rest, so a dropdown or a tip inside a collapse is
+ * not cut off by the thing that holds it.
+ */
+.collapse-body {
+  display: flow-root;
+}
+
 .collapse-stepping > .collapse-body {
   height: calc(var(--rows, 0) * 1lh);
   overflow: hidden;
@@ -890,4 +905,34 @@ dialog.offcanvas {
 /* The dim behind a drawer is a sibling, not a child: see offcanvas.js. */
 dialog.offcanvas::backdrop {
   background: none;
+}
+
+/*
+ * The tabs structure, declared rather than implied. These are the classes the
+ * behavior layer reads, and `test/readme.spec.js` requires that a class the
+ * README documents actually ships — which is the right rule: a structural hook
+ * that exists only in a JS selector is a class nobody can look up.
+ */
+.tabs {
+  display: block;
+}
+
+/*
+ * A tab strip never wraps. The strip is a .nav, and a .nav that wrapped to a
+ * second row would change the component's height underneath the panel lock, so
+ * a strip with more tabs than fit clips at the edge instead — the same trade
+ * .statusbar makes.
+ */
+.tabs-list {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.tabs-panels {
+  position: relative;
+}
+
+/* The module hides panels with the attribute, so this is where that is said. */
+.tab-panel[hidden] {
+  display: none;
 }

@@ -416,9 +416,9 @@ webterm/
 - [ ] Wide glyph support (`2ch` inline-block wrapper) — post-v1.
 - [ ] Half-block / braille image renderer — post-v1, JS, separate package.
 - [x] Interactive JS — **taken**, as layer 4 (§11). Optional, inside this
-      repo, and the CSS never depends on it. Round one is toasts, loading,
-      placeholders and modals; collapse, dropdown, tabs, tooltip and
-      offcanvas are the next pass.
+      repo, and the CSS never depends on it. Round one was toasts, loading,
+      placeholders and modals; round two (§11.10) was collapse, tabs,
+      dropdown, tooltip and offcanvas. Both are built.
 - [ ] Light-background themes: does inverse-video hierarchy still read well?
 
 ## 9. Milestones
@@ -436,10 +436,13 @@ webterm/
    `ch`/`lh` boundary; borders have no sub-cell gaps (pixel diff).
 7. **Skin** — `.crt`.
 8. **Behavior** — layer 4 (§11). ✅
-   Foundation, loading, placeholders, toasts and modals, each spec-first;
-   `test/behavior.spec.js` holds the layer to §2, sampling cell exactness
-   mid-animation and loading the whole page with JavaScript disabled.
-   Collapse, dropdown, tabs, tooltip and offcanvas are the next pass.
+   Round one: foundation, loading, placeholders, toasts and modals. Round two
+   (§11.10): collapse, tabs, dropdown, tooltip and offcanvas. Each phase
+   spec-first; `test/behavior.spec.js` holds the layer to §2 with 180
+   assertions, sampling cell exactness mid-animation and loading the whole page
+   with JavaScript disabled.
+   Still open for a third pass: a vertical tablist, and a wipe transition
+   between tab panels if one can be made cell-exact.
 9. **Docs site** — built with webterm itself.
 10. **Generator** — resolve §8 and automate themes.
 
@@ -726,6 +729,9 @@ then `npm test` green.
 | 4 | §11.7 modals | focus management and the scroll-lock hazard; leans on all of the above |
 | 5 | docs | README behavior section, revised CSS-only claims, limitations, test-status table |
 
+Round two's phases are §11.10, numbered 6 to 11 and following the same
+protocol.
+
 ### 11.9 What the specs check
 
 Beyond each component's own behavior, the suite holds layer 4 to §2:
@@ -753,7 +759,8 @@ Beyond each component's own behavior, the suite holds layer 4 to §2:
 
 Round one left these named but unspecified so the conventions could be
 designed to carry them (§11.2). They are, and the five fall out of two
-observations.
+observations. All five are built; the phase table at the end of this section
+is the order they were written in.
 
 **The first: a disclosure is `<details>`.** Collapse and dropdown are the same
 widget — a trigger and a region that is there or is not — differing only in

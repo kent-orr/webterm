@@ -2697,6 +2697,40 @@ describe('collapse', () => {
     assert.equal(r.aAnimating, false);
   });
 
+  // Margin collapsing, which bites here in a way that is invisible until you
+  // look at a frame. The clamp is `overflow: hidden`, which establishes a
+  // block formatting context — so a child's top margin that collapsed *through*
+  // the body while it was unclamped is suddenly contained once the animation
+  // starts, and the content is a row taller than the height that was measured
+  // off the resting box. The body is `display: flow-root` so that both states
+  // agree; without it, the last row is clipped for the whole animation and
+  // snaps into place when the clamp lifts.
+  test('a body whose first child has a margin opens to the height it rests at', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const el = document.createElement('details');
+      el.className = 'collapse';
+      el.innerHTML = '<summary>margin</summary><div class="collapse-body"><p class="mt-1">first</p><p class="mt-1">second</p></div>';
+      host.append(el);
+      const body = el.querySelector('.collapse-body');
+      const c = window.Webterm.getOrCreate('collapse', el);
+
+      clock.pause();
+      c.show();
+      const clamped = body.scrollHeight;
+      let guard = 0;
+      while (c.animating && guard < 200) { clock.step(); guard += 1; }
+      const lastFrame = body.getBoundingClientRect().height;
+      clock.resume();
+      const rest = body.getBoundingClientRect().height;
+      el.remove();
+      return { clamped, lastFrame, rest };
+    });
+    assert.equal(r.lastFrame, r.rest, 'the body snapped when the clamp came off');
+    assert.equal(r.clamped, r.rest, `the clamped content is ${r.clamped}px against a resting ${r.rest}px`);
+  });
+
   test('a static open collapse is adopted rather than rebuilt', async () => {
     const r = await page.evaluate(() => {
       const el = document.querySelector('#col-open');

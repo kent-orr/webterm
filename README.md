@@ -299,8 +299,9 @@ appearance is CSS like everything here, and the optional module drives them.
 ## Behavior
 
 Everything above is CSS. The behavior layer is one optional ES module that adds
-the four things a page usually needs a framework for — toasts, loading states,
-placeholders and modals — without a build step or a dependency:
+the things a page usually needs a framework for — toasts, loading states,
+placeholders, modals, collapse, tabs, dropdowns, tooltips and drawers —
+without a build step or a dependency:
 
 ```html
 <script type="module" src=".../src/behavior/webterm.js"></script>
@@ -313,7 +314,9 @@ write any JavaScript yourself.
 form that renders with no script loaded; the module only drives transitions
 between states. A page whose module fails to load degrades to static boxes
 rather than invisible ones, and `test/behavior.spec.js` loads the whole kitchen
-sink with JavaScript disabled to keep that true.
+sink with JavaScript disabled to keep that true. Collapse, dropdowns and
+tooltips do better than that: with no script at all they still *work*, because
+a disclosure is a `<details>` and a tooltip is a `::after`.
 
 Two conventions run through all of it. Everything that is not a class is
 namespaced — attributes are `data-wt-*`, events are `wt:component:verb` with
@@ -494,6 +497,130 @@ the one thing a character grid has to get right here: `reset.css` reserves the
 scrollbar gutter permanently, so the scrollbar appearing and disappearing never
 re-rounds `.screen` and reflows the page behind the dialog.
 
+### Collapse
+
+```html
+<details class="collapse">
+  <summary>disk</summary>
+  <div class="collapse-body">
+    <dl class="kv"><dt>/</dt><dd>14G of 40G</dd></dl>
+  </div>
+</details>
+```
+
+A `<details>`, so it opens and closes with no script. What the module adds is
+the animation, and it is the vertical half of the placeholder's promise: the
+body's height steps a **whole row at a time** on the tick, so the page below it
+is never mid-row. The row count comes from measuring the content, the tick
+count from `data-wt-duration`, so a twenty-row region opens in the same time as
+a two-row one.
+
+The marker is `+`/`-` rather than `▸`/`▾`: those are in Geometric Shapes, which
+is outside the range that measures a single cell in all three bundled fonts.
+`--wt-collapse-closed` and `--wt-collapse-open` take a different pair if your
+font has one. A shared `name` attribute makes the browser close the sibling —
+an accordion, free — and the module watches `toggle` so a sibling closed that
+way leaves no clamp behind.
+
+### Tabs
+
+```html
+<div class="tabs">
+  <div class="nav tabs-list">
+    <a href="#cpu" class="active">cpu</a>
+    <a href="#mem">mem</a>
+  </div>
+  <div class="tabs-panels">
+    <section class="tab-panel" id="cpu">…</section>
+    <section class="tab-panel" id="mem">…</section>
+  </div>
+</div>
+```
+
+With no script that is a document with two sections and two links to them:
+every panel readable, nothing hidden. The module makes it a `tablist` with
+roving focus, arrow keys, `Home`/`End` and one panel at a time, and reuses
+`.nav` for the strip.
+
+The reason tabs are here at all is the height lock. Panels are different
+heights, so switching them moves everything below — the layout shift the
+framework exists to avoid, one axis over. `.tabs-panels` is measured across
+every panel and pinned to the tallest in whole rows, and re-measured when the
+window changes, since text rewraps. `data-wt-fit="content"` opts out. There is
+no transition: a terminal repaints a pane.
+
+### Dropdown
+
+```html
+<details class="dropdown">
+  <summary class="btn">actions</summary>
+  <div class="box dropdown-menu" style="--cells: 24">
+    <span class="box-edge"></span>
+    <div class="menu">
+      <a href="#restart">restart</a>
+      <a href="#drain">drain</a>
+    </div>
+  </div>
+</details>
+```
+
+The same disclosure, floating. Every position the menu can take is anchored to
+an *edge* of the trigger — `top: 100%`, `bottom: 100%`, `left: 0`, `right: 0` —
+so it sits directly against a trigger of any height, and flipping near a
+viewport edge means anchoring to the opposite edge rather than nudging by a
+measured distance. Nothing can land mid-cell, because nothing computes a
+position: `.dropdown-up` and `.dropdown-end` are the two flips, the module
+decides *whether* to flip, and it only does so if the other side is better.
+
+It adds what a native `<details>` has no opinion about: `Escape`, a click
+outside, one open at a time, roving focus through the items with arrows and
+`Home`/`End`, and focus handed back to the trigger on close.
+
+### Tooltip
+
+```html
+<span class="tip" data-wt-tip="412 segments behind" tabindex="0">charlie</span>
+```
+
+An inverse strip against the trigger's edge, up to `--cells` wide and wrapped
+to whole rows. No arrow: a CSS triangle is a sub-cell shape and the glyph that
+would stand in for one is not single-cell in every bundled font, so the bubble
+sits flush, which is what a TUI hint does.
+
+With no script the whole component is `.tip::after`, taking its text from the
+attribute on hover and focus. With the module it is a real element instead —
+a pseudo-element cannot be the target of `aria-describedby` and cannot be
+flipped away from a viewport edge — and `[data-wt-ready] .tip::after` stands
+the static one down so only one ever shows. The module adds the open delay
+(`data-wt-delay`, in ms), the flip, and `Escape`.
+
+Put `.tip` on something focusable, or give it `tabindex="0"`: a hover-only
+tooltip is not reachable from the keyboard.
+
+### Offcanvas
+
+```html
+<button class="btn" data-wt-toggle="offcanvas" data-wt-target="#nav">menu</button>
+
+<dialog class="box offcanvas offcanvas-left" id="nav" style="--cells: 28">
+  <span class="box-edge"></span>
+  <span class="box-title">nav</span>
+  <div class="menu">…</div>
+  <p><button class="btn" data-wt-dismiss="offcanvas">close</button></p>
+</dialog>
+```
+
+A drawer is the modal's `<dialog>` anchored to an edge, so it inherits
+`Escape`, the focus trap, the inert page, the top layer and the scroll lock.
+`.offcanvas-left` and `-right` are `--cells` wide and as many whole rows tall
+as the viewport holds; `-top` and `-bottom` are `--rows` tall and as many whole
+columns wide.
+
+It slides, a whole number of cells per tick, and `Escape` slides it out rather
+than cutting it away. The dim behind it is a sibling rather than a child of the
+dialog, because a transform makes a dialog the containing block for its fixed
+descendants — a child dim would slide with the panel it is meant to sit behind.
+
 ## Theming
 
 A theme sets color custom properties and nothing else — 16 ANSI slots plus
@@ -589,7 +716,7 @@ widths have to match what ships. Rename a class and the README fails with it.
 | `themes.spec.js`                      | 206 pass — theme contract and contrast       |
 | `readme.spec.js`                      | 8 pass — every class, set and license claim this file makes |
 | `grid.spec.js` + `default.spec.js`    | 51 pass — integer cells, continuous borders, the default paints and a `<link>` beats it |
-| `behavior.spec.js`                    | 117 pass — the behavior layer, cell-exact mid-animation, and the whole page with scripts disabled |
+| `behavior.spec.js`                    | 180 pass — the behavior layer, cell-exact mid-animation, and the whole page with scripts disabled |
 | `metrics.spec.js`                     | 240 pass, **100 fail** — known, see below    |
 
 The 100 failures are a wrong assertion, not a layout bug. `metrics.spec.js`
@@ -600,7 +727,7 @@ matters still holds (N cells is N equal whole-px columns, regular and bold, no
 drift with N); the em-advance prediction the test checks is not what the
 browser uses. See PLAN §8.
 
-`npm test` runs every spec in one process — 722 tests, 622 pass, the same 100
+`npm test` runs every spec in one process — 785 tests, 685 pass, the same 100
 fail. In roughly one run in three, three of the browser assertions come back
 cancelled rather than passed; re-running clears it, and running a spec on its
 own never shows it. Treat a cancelled assertion as "run it again", not as a
@@ -622,8 +749,17 @@ result.
 - **The behavior layer is Chromium-tested only**, like the calibration. It
   uses `<dialog>`, `:has()` and `round()`, all of which are supported in
   current Firefox and Safari but are not covered by a spec run here.
-- **Dropdowns, tabs, tooltips, collapse and offcanvas are not written yet.**
-  The conventions in `src/behavior/` are designed to carry them; see PLAN §11.
+- **A tooltip needs a focusable trigger.** `.tip` on a plain `<span>` is
+  hover-only until it gets a `tabindex`; the module does not add one, because
+  silently rewriting a page's tab order is worse than the gap.
+- **A tab strip is horizontal only.** Arrow keys are left and right; a vertical
+  tablist is not written.
+- **A collapse body is a formatting context** (`display: flow-root`), so a
+  margin on its first or last child sits inside the body rather than collapsing
+  through it. That is deliberate — the clamp used during the animation
+  establishes a formatting context anyway, and a body that only does so while
+  it is opening measures one height and animates to another — but it means a
+  `.collapse-body` spaces slightly differently from a plain `<div>`.
 
 ## License
 
