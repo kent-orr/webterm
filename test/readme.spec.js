@@ -149,6 +149,31 @@ describe('the README enumerates the shipped sets', () => {
     );
   });
 
+  // Three files state the license and they are edited at different times:
+  // package.json, the README, and LICENSE itself. A repo that redistributes
+  // fonts under three other licenses cannot afford them to disagree.
+  test('the license is MIT in every place that names one', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    assert.equal(pkg.license, 'MIT');
+
+    const license = fs.readFileSync(path.join(root, 'LICENSE'), 'utf8');
+    assert.match(license, /^MIT License\n/);
+    assert.match(license, /Permission is hereby granted, free of charge/);
+    assert.match(license, /Copyright \(c\) \d{4}/);
+
+    assert.match(readme, /## License\n\nMIT — see `LICENSE`\./);
+
+    // The bundled fonts are not ours to relicense, so the README has to say
+    // the MIT grant stops at the framework.
+    assert.match(readme, /`LICENSE` does not cover them/);
+    for (const dir of ['jetbrains-mono', 'iosevka', 'dejavu-sans-mono']) {
+      assert.ok(
+        fs.existsSync(path.join(root, 'fonts', dir, 'LICENSE')),
+        `fonts/${dir}/LICENSE is missing but the README points at it`,
+      );
+    }
+  });
+
   // Rule 2 and PLAN §4.7: the framework has exactly one px value, and the
   // README tells the reader which custom property it is.
   test('the README names the only px knob, and it is the only one', () => {

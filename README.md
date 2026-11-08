@@ -55,7 +55,12 @@ default theme, Pawpaw, so it paints without a theme `<link>`.
 
 `@main` is a moving target — jsDelivr caches it for 12 hours at the edge and 7
 days in the browser, so pushes reach other people late and unevenly. For
-anything you share, pin a commit instead: `@cd7a95b/src/webterm.css`.
+anything you share, pin a release tag instead:
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/kent-orr/webterm@v0.1.0/fonts/webterm-fonts.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/kent-orr/webterm@v0.1.0/src/webterm.css">
+```
 
 `raw.githubusercontent.com` does **not** work. It serves CSS as `text/plain`
 with `X-Content-Type-Options: nosniff`, so the browser refuses to apply it.
@@ -360,7 +365,7 @@ widths have to match what ships. Rename a class and the README fails with it.
 | suite                                 | result                                       |
 |---------------------------------------|----------------------------------------------|
 | `themes.spec.js`                      | 206 pass — theme contract and contrast       |
-| `readme.spec.js`                      | 7 pass — every class and set this file documents |
+| `readme.spec.js`                      | 8 pass — every class, set and license claim this file makes |
 | `grid.spec.js` + `default.spec.js`    | 51 pass — integer cells, continuous borders, the default paints and a `<link>` beats it |
 | `metrics.spec.js`                     | 240 pass, **100 fail** — known, see below    |
 
@@ -372,7 +377,7 @@ matters still holds (N cells is N equal whole-px columns, regular and bold, no
 drift with N); the em-advance prediction the test checks is not what the
 browser uses. See PLAN §8.
 
-`npm test` runs every spec in one process — 604 tests, 504 pass, the same 100
+`npm test` runs every spec in one process — 605 tests, 505 pass, the same 100
 fail. In roughly one run in three, three of the browser assertions come back
 cancelled rather than passed; re-running clears it, and running a spec on its
 own never shows it. Treat a cancelled assertion as "run it again", not as a
@@ -396,8 +401,8 @@ result.
 
 ## License
 
-MIT.
+MIT — see `LICENSE`.
 
-Bundled fonts keep their own licenses: JetBrains Mono and Iosevka under
-OFL-1.1, DejaVu Sans Mono under the Bitstream Vera license. Each license file
-sits in that font's directory under `fonts/`.
+Bundled fonts keep their own licenses, and `LICENSE` does not cover them:
+JetBrains Mono and Iosevka under OFL-1.1, DejaVu Sans Mono under the Bitstream
+Vera license. Each license file sits in that font's directory under `fonts/`.
