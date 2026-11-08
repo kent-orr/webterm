@@ -24,6 +24,7 @@ import { Progress, fillCells, setLoading, isLoading } from './progress.js';
 import { Placeholder, CHARSETS } from './placeholder.js';
 import { Toast, toast, toastStack, clearToasts, toastQueue, useConfig } from './toast.js';
 import { Modal, confirm, prompt } from './modal.js';
+import { Offcanvas } from './offcanvas.js';
 import { Collapse } from './collapse.js';
 import { Tabs } from './tabs.js';
 import { Dropdown } from './dropdown.js';
@@ -51,7 +52,7 @@ export { register, get, getOrCreate, attach, init };
 export { Progress, fillCells, setLoading, isLoading };
 export { Placeholder, CHARSETS };
 export { Toast, toast, toastStack, clearToasts, toastQueue };
-export { Modal, confirm, prompt };
+export { Modal, confirm, prompt, Offcanvas };
 export { Collapse, Tabs, Dropdown, Tooltip };
 
 
@@ -115,6 +116,7 @@ register('progress', Progress);
 register('placeholder', Placeholder);
 register('toast', Toast);
 register('modal', Modal);
+register('offcanvas', Offcanvas);
 register('collapse', Collapse);
 register('tabs', Tabs);
 register('dropdown', Dropdown);
@@ -162,6 +164,7 @@ const api = {
   Modal,
   confirm,
   prompt,
+  Offcanvas,
   Collapse,
   Tabs,
   Dropdown,

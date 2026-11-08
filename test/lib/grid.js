@@ -71,7 +71,7 @@ async function screenColumns(page, cell) {
  */
 const HIDE_ID = 'wt-spec-hide-fixed';
 
-async function hideFixed(page, selector = '.statusbar-fixed, .toast-stack') {
+async function hideFixed(page, selector = '.statusbar-fixed, .toast-stack, dialog.offcanvas[open]') {
   await page.evaluate(([id, sel]) => {
     document.getElementById(id)?.remove();
     const style = document.createElement('style');

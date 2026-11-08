@@ -40,7 +40,11 @@
   --wt-z-tip: 17;
   --wt-z-toast: 20;
   --wt-z-backdrop: 30;
-  --wt-z-modal: 31;
+  /* A drawer is above the dim and below a dialog opened from inside it. The
+     top layer settles that for two showModal() dialogs; the rung still has to
+     be right for a page that opens one without it. */
+  --wt-z-offcanvas: 31;
+  --wt-z-modal: 32;
 
   /* Where a dialog's top edge sits when nothing has measured it (PLAN §11.3). */
   --wt-dialog-top: 4lh;

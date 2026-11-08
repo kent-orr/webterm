@@ -479,10 +479,11 @@ describe('overlay', () => {
         tip: read('--wt-z-tip'),
         toast: read('--wt-z-toast'),
         backdrop: read('--wt-z-backdrop'),
+        offcanvas: read('--wt-z-offcanvas'),
         modal: read('--wt-z-modal'),
       };
     });
-    const order = ['content', 'statusbar', 'dropdown', 'tip', 'toast', 'backdrop', 'modal'];
+    const order = ['content', 'statusbar', 'dropdown', 'tip', 'toast', 'backdrop', 'offcanvas', 'modal'];
     for (const name of order) assert.ok(Number.isFinite(z[name]), `--wt-z-${name} is not a number`);
     for (let i = 1; i < order.length; i++) {
       assert.ok(z[order[i]] > z[order[i - 1]], `${order[i]} (${z[order[i]]}) must sit above ${order[i - 1]} (${z[order[i - 1]]})`);
@@ -1750,8 +1751,9 @@ describe('toast stack', () => {
       window.Webterm.toast('Replica charlie is behind the primary.', { level: 'warn', timeout: 0 });
       window.Webterm.motion.clock.drain();
     });
-    // Only the status bar: the toast itself is the subject here.
-    await hideFixed(page, '.statusbar-fixed');
+    // Only the status bar and the static drawer, both of which are pinned to
+    // the bottom edge where the toast stack is; the toast is the subject here.
+    await hideFixed(page, '.statusbar-fixed, dialog.offcanvas[open]');
     const shot = await page.screenshot({ animations: 'disabled', caret: 'hide' });
     await showFixed(page);
     const png = borders.readShot(shot);
@@ -2184,7 +2186,7 @@ describe('modal', () => {
 
   test('a dialog draws four corners and continuous edges', async () => {
     await page.click('[data-wt-toggle="modal"][data-wt-target="#modal-demo"]');
-    await hideFixed(page, '.statusbar-fixed');
+    await hideFixed(page, '.statusbar-fixed, dialog.offcanvas[open]');
     const shot = await page.screenshot({ animations: 'disabled', caret: 'hide' });
     await showFixed(page);
     const png = borders.readShot(shot);
@@ -3058,7 +3060,7 @@ describe('dropdown', () => {
       // the trigger can actually be seen.
       el.scrollIntoView({ block: 'center' });
       d.show();
-      const menu = el.querySelector(':scope > .dropdown-menu, .tip');
+      const menu = el.querySelector(':scope > .dropdown-menu, .tip, dialog.offcanvas[open]');
       const summary = el.querySelector(':scope > summary');
       const screen = document.querySelector('.screen');
       const m = menu.getBoundingClientRect();
@@ -3588,6 +3590,331 @@ describe('tooltip', () => {
     const h = Number.parseFloat(r.h);
     assert.ok(offGrid(w, c.ch) < TOL, `the static bubble is ${r.w} wide`);
     assert.ok(offGrid(h, c.lh) < TOL, `the static bubble is ${r.h} tall`);
+    await ctx.close();
+  });
+});
+
+// ----------------------------------------------------------------- offcanvas
+//
+// PLAN §11.10. The modal's dialog anchored to an edge, which is why the module
+// is `class Offcanvas extends Modal`: Escape, the focus trap, the inert page,
+// the top layer, the reference-counted scroll lock and the ░ dim are written
+// and specced already. What is new is one axis of geometry and one animation.
+//
+// The animation is the interesting assertion: a drawer slides, and a slide is
+// the one thing in this layer that moves a whole component across the screen.
+// Every frame of it has to be a whole number of cells from where it will come
+// to rest, or the border lands between columns for most of the opening.
+describe('offcanvas', () => {
+  async function shut() {
+    await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      for (const el of document.querySelectorAll('dialog.offcanvas[open]')) {
+        if (el.id === 'oc-open') continue;
+        const oc = window.Webterm.getOrCreate('offcanvas', el);
+        oc.hide();
+        clock.drain();
+      }
+    });
+  }
+
+  // One slide, sampled tick by tick: the offsets from the resting position, in
+  // cells or rows, which is the claim stated in the units it is made in.
+  async function slide(id, axis) {
+    return page.evaluate(([sel, which]) => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector(sel);
+      const oc = window.Webterm.getOrCreate('offcanvas', el);
+      const at = () => {
+        const r = el.getBoundingClientRect();
+        return which === 'x' ? r.x : r.y;
+      };
+      clock.pause();
+      oc.show();
+      const samples = [at()];
+      let guard = 0;
+      while (oc.sliding && guard < 200) {
+        clock.step();
+        samples.push(at());
+        guard += 1;
+      }
+      const rest = at();
+      const size = which === 'x' ? el.getBoundingClientRect().width : el.getBoundingClientRect().height;
+      const slideLeft = el.style.getPropertyValue('--wt-slide');
+      clock.resume();
+      oc.hide();
+      clock.drain();
+      return { samples, rest, size, steps: guard, slideLeft, open: el.open };
+    }, [id, axis]);
+  }
+
+  test('a side drawer is --cells wide and the viewport’s whole rows tall', async () => {
+    await shut();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#oc-left');
+      const oc = window.Webterm.getOrCreate('offcanvas', el);
+      oc.show();
+      window.Webterm.motion.clock.drain();
+      const b = el.getBoundingClientRect();
+      const out = {
+        w: b.width,
+        h: b.height,
+        x: b.x,
+        cells: Number(getComputedStyle(el).getPropertyValue('--cells')),
+        viewport: document.documentElement.clientHeight,
+      };
+      oc.hide();
+      window.Webterm.motion.clock.drain();
+      return out;
+    });
+    assert.ok(Math.abs(r.w - r.cells * cell.ch) < TOL, `${r.w}px for ${r.cells} cells`);
+    assert.ok(offGrid(r.h, cell.lh) < TOL, `the drawer is ${r.h}px tall`);
+    assert.ok(r.h <= r.viewport + TOL, `the drawer is ${r.h}px in a ${r.viewport}px viewport`);
+    assert.ok(r.viewport - r.h < cell.lh, `${r.viewport - r.h}px of viewport left under a full-height drawer`);
+    assert.ok(Math.abs(r.x) < TOL, `a left drawer rests at x=${r.x}`);
+  });
+
+  test('it slides whole cells per tick and comes to rest flush with the edge', async () => {
+    await shut();
+    const r = await slide('#oc-left', 'x');
+    assert.ok(r.steps > 1, `the drawer arrived in ${r.steps} steps, so nothing slid`);
+    const offsets = r.samples.map((v) => (v - r.rest) / cell.ch);
+    const fractional = offsets.filter((n) => Math.abs(n - Math.round(n)) > 0.02);
+    assert.deepEqual(fractional, [], `a frame landed mid-cell: ${offsets.join(', ')}`);
+    assert.ok(Math.abs(offsets[0] + r.size / cell.ch) < 0.02, `the drawer started ${offsets[0]} cells out, not ${-r.size / cell.ch}`);
+    for (let i = 1; i < offsets.length; i += 1) {
+      assert.ok(offsets[i] >= offsets[i - 1] - 0.02, `the drawer slid backwards: ${offsets.join(', ')}`);
+    }
+    assert.equal(offsets.at(-1), 0, 'the drawer did not come to rest flush with its edge');
+    assert.equal(r.slideLeft, '', `--wt-slide left behind: ${r.slideLeft}`);
+  });
+
+  test('a right-hand drawer slides in from the right', async () => {
+    await shut();
+    const r = await slide('#oc-right', 'x');
+    const offsets = r.samples.map((v) => (v - r.rest) / cell.ch);
+    assert.ok(offsets[0] > 0, `a right drawer started at ${offsets[0]} cells, which is the wrong side`);
+    const fractional = offsets.filter((n) => Math.abs(n - Math.round(n)) > 0.02);
+    assert.deepEqual(fractional, [], `a frame landed mid-cell: ${offsets.join(', ')}`);
+    for (let i = 1; i < offsets.length; i += 1) {
+      assert.ok(offsets[i] <= offsets[i - 1] + 0.02, `the drawer slid backwards: ${offsets.join(', ')}`);
+    }
+    assert.equal(offsets.at(-1), 0);
+  });
+
+  test('a bottom drawer is --rows tall and slides on the row grid', async () => {
+    await shut();
+    const r = await slide('#oc-bottom', 'y');
+    const rows = await page.evaluate(() => Number(getComputedStyle(document.querySelector('#oc-bottom')).getPropertyValue('--rows')));
+    assert.ok(Math.abs(r.size - rows * cell.lh) < TOL, `${r.size}px for ${rows} rows`);
+    const offsets = r.samples.map((v) => (v - r.rest) / cell.lh);
+    const fractional = offsets.filter((n) => Math.abs(n - Math.round(n)) > 0.02);
+    assert.deepEqual(fractional, [], `a frame landed mid-row: ${offsets.join(', ')}`);
+    assert.ok(offsets[0] > 0, 'a bottom drawer must start below its resting place');
+    assert.equal(offsets.at(-1), 0);
+  });
+
+  // The hazard the inheritance created. The modal's dim is a fixed child of
+  // the dialog, which puts it in the top layer with it — but a transform makes
+  // the dialog the containing block for its fixed descendants, so a child dim
+  // would slide along with the panel it is meant to sit behind.
+  test('the dim does not slide with the panel', async () => {
+    await shut();
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#oc-left');
+      const oc = window.Webterm.getOrCreate('offcanvas', el);
+      clock.pause();
+      oc.show();
+      const shade = oc.shade;
+      const inside = el.contains(shade);
+      const xs = [];
+      const ws = [];
+      let guard = 0;
+      while (oc.sliding && guard < 200) {
+        const b = shade.getBoundingClientRect();
+        xs.push(b.x);
+        ws.push(b.width);
+        clock.step();
+        guard += 1;
+      }
+      clock.resume();
+      oc.hide();
+      clock.drain();
+      return { xs: [...new Set(xs)], ws: [...new Set(ws)], inside, left: document.querySelectorAll('.backdrop').length };
+    });
+    assert.equal(r.inside, false, 'the dim is a child of a panel that moves');
+    assert.equal(r.xs.length, 1, `the dim took ${r.xs.length} positions while the panel slid: ${r.xs.join(', ')}`);
+    assert.equal(r.ws.length, 1, `the dim took ${r.ws.length} widths: ${r.ws.join(', ')}`);
+    assert.equal(r.left, 0, 'the dim outlived the drawer');
+  });
+
+  test('the column count never moves while a drawer slides', async () => {
+    await shut();
+    const before = await screenColumns(page, cell);
+    const during = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const screen = document.querySelector('.screen');
+      const el = document.querySelector('#oc-left');
+      const oc = window.Webterm.getOrCreate('offcanvas', el);
+      clock.pause();
+      oc.show();
+      const widths = [screen.getBoundingClientRect().width];
+      let guard = 0;
+      while (oc.sliding && guard < 200) {
+        clock.step();
+        widths.push(screen.getBoundingClientRect().width);
+        guard += 1;
+      }
+      clock.resume();
+      oc.hide();
+      clock.drain();
+      return [...new Set(widths)];
+    });
+    assert.equal(during.length, 1, `the screen took ${during.length} widths: ${during.join(', ')}`);
+    assert.equal(await screenColumns(page, cell), before);
+  });
+
+  test('it holds one scroll lock and releases it once', async () => {
+    await shut();
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#oc-left');
+      const oc = window.Webterm.getOrCreate('offcanvas', el);
+      oc.show();
+      clock.drain();
+      const open = window.Webterm.scrollLocks();
+      oc.hide();
+      clock.drain();
+      return { open, closed: window.Webterm.scrollLocks() };
+    });
+    assert.equal(r.open, 1);
+    assert.equal(r.closed, 0, 'a drawer left the page locked');
+  });
+
+  // §11.2 rule 6: the end state now, not a faster slide.
+  test('motion off opens flush and schedules nothing', async () => {
+    await shut();
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#oc-left');
+      const oc = window.Webterm.getOrCreate('offcanvas', el);
+      document.documentElement.dataset.wtMotion = 'off';
+      oc.show();
+      const opened = { x: el.getBoundingClientRect().x, jobs: clock.finiteJobs, sliding: oc.sliding };
+      oc.hide();
+      const closed = { open: el.open, jobs: clock.finiteJobs };
+      delete document.documentElement.dataset.wtMotion;
+      return { opened, closed };
+    });
+    assert.ok(Math.abs(r.opened.x) < TOL, `the drawer opened at x=${r.opened.x} with motion off`);
+    assert.equal(r.opened.sliding, false);
+    assert.equal(r.opened.jobs, 0, 'a slide was scheduled with motion off');
+    assert.equal(r.closed.open, false);
+    assert.equal(r.closed.jobs, 0);
+  });
+
+  test('the four lifecycle events are the drawer’s own, in order, and show is cancelable', async () => {
+    await shut();
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#oc-left');
+      const oc = window.Webterm.getOrCreate('offcanvas', el);
+      const log = [];
+      const types = ['wt:offcanvas:show', 'wt:offcanvas:shown', 'wt:offcanvas:hide', 'wt:offcanvas:hidden'];
+      const handler = (e) => log.push(e.type);
+      const stray = [];
+      const onModal = (e) => stray.push(e.type);
+      for (const t of types) el.addEventListener(t, handler);
+      for (const t of ['wt:modal:show', 'wt:modal:shown']) el.addEventListener(t, onModal);
+      oc.show();
+      clock.drain();
+      oc.hide();
+      clock.drain();
+      for (const t of types) el.removeEventListener(t, handler);
+      for (const t of ['wt:modal:show', 'wt:modal:shown']) el.removeEventListener(t, onModal);
+
+      const block = (e) => e.preventDefault();
+      el.addEventListener('wt:offcanvas:show', block);
+      oc.show();
+      const blocked = el.open;
+      el.removeEventListener('wt:offcanvas:show', block);
+      if (el.open) { oc.hide(); clock.drain(); }
+      return { log, stray, blocked };
+    });
+    assert.deepEqual(r.log, ['wt:offcanvas:show', 'wt:offcanvas:shown', 'wt:offcanvas:hide', 'wt:offcanvas:hidden']);
+    assert.deepEqual(r.stray, [], 'a drawer emitted the modal’s events as well as its own');
+    assert.equal(r.blocked, false, 'a prevented show opened the drawer anyway');
+  });
+
+  // Escape on a <dialog> fires `cancel` and then closes it, which would make a
+  // drawer vanish rather than leave. The cancel is taken instead.
+  test('Escape slides it out rather than cutting it away', async () => {
+    await shut();
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#oc-left');
+      const oc = window.Webterm.getOrCreate('offcanvas', el);
+      oc.show();
+      clock.drain();
+      clock.pause();
+      el.dispatchEvent(new Event('cancel', { cancelable: true, bubbles: false }));
+      const during = { open: el.open, sliding: oc.sliding };
+      clock.drain();
+      clock.resume();
+      return { during, open: el.open, locks: window.Webterm.scrollLocks() };
+    });
+    assert.equal(r.during.open, true, 'Escape closed the drawer before it could leave');
+    assert.equal(r.during.sliding, true, 'Escape did not start the slide');
+    assert.equal(r.open, false, 'the drawer never closed');
+    assert.equal(r.locks, 0);
+  });
+
+  test('the data API opens and dismisses a drawer', async () => {
+    await shut();
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#oc-left');
+      document.querySelector('[data-wt-toggle="offcanvas"][data-wt-target="#oc-left"]').click();
+      clock.drain();
+      const opened = el.open;
+      el.querySelector('[data-wt-dismiss="offcanvas"]').click();
+      clock.drain();
+      return { opened, closed: el.open };
+    });
+    assert.equal(r.opened, true, 'the toggle did not open the drawer');
+    assert.equal(r.closed, false, 'the dismiss did not close it');
+  });
+
+  // §11.1: a drawer with [open] is pinned to its edge and on the grid with no
+  // module at all — the same static claim the modal makes.
+  test('a drawer with [open] renders on the grid without the module', async () => {
+    const ctx = await browser.newContext({
+      deviceScaleFactor: 1,
+      viewport: { width: 1280, height: 1024 },
+      javaScriptEnabled: false,
+    });
+    const quiet = await ctx.newPage();
+    await quiet.goto(`${server.origin}/test/behavior.html`);
+    await quiet.waitForTimeout(200);
+    const c = await cellSize(quiet);
+    const r = await quiet.evaluate(() => {
+      const el = document.querySelector('#oc-open');
+      const b = el.getBoundingClientRect();
+      return {
+        open: el.open,
+        w: b.width,
+        h: b.height,
+        rows: Number(getComputedStyle(el).getPropertyValue('--rows')),
+        bottom: b.bottom - document.documentElement.clientHeight,
+        display: getComputedStyle(el).display,
+      };
+    });
+    assert.equal(r.open, true, 'the fixture is not open');
+    assert.notEqual(r.display, 'none');
+    assert.ok(offGrid(r.w, c.ch) < TOL, `the static drawer is ${r.w}px wide`);
+    assert.ok(Math.abs(r.h - r.rows * c.lh) < TOL, `${r.h}px for ${r.rows} rows`);
+    assert.ok(Math.abs(r.bottom) < TOL, `the static drawer is ${r.bottom}px off the bottom edge`);
     await ctx.close();
   });
 });

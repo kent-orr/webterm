@@ -29,6 +29,10 @@ export class Modal {
     this.shade = null;
     this.static = el.hasAttribute('data-wt-static');
     this.cleaned = true;
+    // Set while a leave transition is running, so a second hide() during one
+    // does not start another. Nothing to guard for a modal, which leaves in
+    // the frame it was asked to; everything to guard for a drawer that slides.
+    this.closing = false;
     ensureEdge(el);
 
     // A <dialog> closed by Escape or by a form never passes through hide(),
@@ -42,6 +46,27 @@ export class Modal {
 
   get open() {
     return this.el.open;
+  }
+
+  /**
+   * The name this component emits under — wt:modal:show, wt:offcanvas:show.
+   *
+   * Everything below is shared with the offcanvas (§11.10), which is the same
+   * dialog anchored to an edge, so the event names are the one thing that has
+   * to vary and the two transition hooks are the only behavior that does.
+   */
+  get component() {
+    return 'modal';
+  }
+
+  /** Run `done` once the dialog has arrived. At once, unless it slides. */
+  enter(done) {
+    done();
+  }
+
+  /** Run `done` once it has gone. Likewise. */
+  leave(done) {
+    done();
   }
 
   /*
@@ -59,33 +84,46 @@ export class Modal {
 
   show(opener = null) {
     if (this.el.open) return false;
-    if (!emit(this.el, 'modal:show', { opener })) return false;
+    if (!emit(this.el, `${this.component}:show`, { opener })) return false;
     this.opener = opener || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
 
-    if (!this.el.querySelector(':scope > .backdrop')) {
-      const shade = document.createElement('span');
-      shade.className = 'backdrop';
-      shade.setAttribute('aria-hidden', 'true');
-      // First child: it paints under everything else the dialog draws, and
-      // over the dialog's own background, where it is invisible anyway.
-      this.el.prepend(shade);
-      this.shade = shade;
-    }
-
+    this.mountShade();
     this.cleaned = false;
     lockScroll();
     this.el.showModal();
-    emit(this.el, 'modal:shown', { opener: this.opener });
+    this.enter(() => emit(this.el, `${this.component}:shown`, { opener: this.opener }));
     return true;
   }
 
+  /*
+   * The dim, as the first child of the dialog: a position: fixed child of a
+   * dialog is in the top layer with it and covers the viewport, and the
+   * dialog's own --bg hides the part of it that falls inside the dialog's rect,
+   * where the glyphs are the colour of what is behind them anyway.
+   *
+   * A drawer overrides this, because it slides and a shade inside a
+   * transformed element would slide with it.
+   */
+  mountShade() {
+    if (this.el.querySelector(':scope > .backdrop')) return null;
+    const shade = document.createElement('span');
+    shade.className = 'backdrop';
+    shade.setAttribute('aria-hidden', 'true');
+    this.el.prepend(shade);
+    this.shade = shade;
+    return shade;
+  }
+
   hide(trigger = null) {
-    if (!this.el.open) return false;
-    if (!emit(this.el, 'modal:hide', { trigger })) return false;
+    if (!this.el.open || this.closing) return false;
+    if (!emit(this.el, `${this.component}:hide`, { trigger })) return false;
     // A dismiss control may carry the value the caller is waiting for.
     if (trigger && trigger.value) this.el.returnValue = trigger.value;
-    this.el.close(this.el.returnValue || '');
-    this.afterClose();
+    this.closing = true;
+    this.leave(() => {
+      this.el.close(this.el.returnValue || '');
+      this.afterClose();
+    });
     return true;
   }
 
@@ -94,6 +132,11 @@ export class Modal {
    * only — the close event arrives after hide() has already done this.
    */
   afterClose() {
+    // Cleared before the guard below, not after it: a dialog that was open in
+    // the markup has never been through show(), so it is already `cleaned`,
+    // and clearing the flag inside the guard would leave such an instance
+    // stuck mid-leave and refusing every later hide().
+    this.closing = false;
     if (this.cleaned) return;
     this.cleaned = true;
     unlockScroll();
@@ -104,7 +147,7 @@ export class Modal {
     const opener = this.opener;
     this.opener = null;
     if (opener && document.body.contains(opener)) opener.focus();
-    emit(this.el, 'modal:hidden', { returnValue: this.el.returnValue });
+    emit(this.el, `${this.component}:hidden`, { returnValue: this.el.returnValue });
   }
 
   toggle(opener = null) {

@@ -456,6 +456,58 @@ echo      replica  0.12  ok</pre>
     </div>
   </div>
 
+  <h2 class="mt-2">Offcanvas</h2>
+  <p>A drawer is the modal’s dialog anchored to an edge, so Escape, the focus
+  trap, the inert page, the top layer and the reference-counted scroll lock are
+  already written. What is new is the slide, which steps whole cells on the
+  tick, and the dim — which has to live outside a panel that moves, or it moves
+  with it.</p>
+
+  <p class="mt-1">
+    <button class="btn" data-wt-toggle="offcanvas" data-wt-target="#oc-left">left</button>
+    <button class="btn" data-wt-toggle="offcanvas" data-wt-target="#oc-right">right</button>
+    <button class="btn" data-wt-toggle="offcanvas" data-wt-target="#oc-bottom">bottom</button>
+  </p>
+
+  <dialog class="box offcanvas offcanvas-left" id="oc-left" style="--cells: 28">
+    <span class="box-edge"></span>
+    <span class="box-title">nav</span>
+    <div class="menu mt-1">
+      <a href="#oc-overview" class="active">overview</a>
+      <a href="#oc-replicas">replicas</a>
+      <a href="#oc-segments">segments</a>
+    </div>
+    <p class="mt-1"><button class="btn" data-wt-dismiss="offcanvas">close</button></p>
+  </dialog>
+
+  <dialog class="box offcanvas offcanvas-right" id="oc-right" style="--cells: 24">
+    <span class="box-edge"></span>
+    <span class="box-title">detail</span>
+    <dl class="kv mt-1">
+      <dt>host</dt><dd>charlie</dd>
+      <dt>role</dt><dd>replica</dd>
+      <dt>lag</dt><dd>412</dd>
+    </dl>
+    <p class="mt-1"><button class="btn" data-wt-dismiss="offcanvas">close</button></p>
+  </dialog>
+
+  <dialog class="box offcanvas offcanvas-bottom" id="oc-bottom" style="--rows: 8">
+    <span class="box-edge"></span>
+    <span class="box-title">log</span>
+    <pre class="mt-1">11:04:02  replica charlie fell behind
+11:04:19  412 segments outstanding
+11:23:41  still degraded</pre>
+    <p class="mt-1"><button class="btn" data-wt-dismiss="offcanvas">close</button></p>
+  </dialog>
+
+  <h3 class="mt-2">Without a script</h3>
+  <p>A drawer with <code>open</code> is pinned to its edge and on the grid with
+  no module loaded — no top layer, no dim, no slide.</p>
+  <dialog class="box offcanvas offcanvas-bottom" id="oc-open" style="--rows: 3" open>
+    <span class="box-edge"></span>
+    <span class="box-title">static</span>
+  </dialog>
+
   <div class="statusbar statusbar-fixed">
     <span>webterm</span>
     <span class="spacer"></span>

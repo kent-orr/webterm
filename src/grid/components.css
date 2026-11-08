@@ -825,3 +825,69 @@ dialog.modal > .backdrop {
 [data-wt-ready] .tip::after {
   content: none;
 }
+
+/*
+ * ----------------------------------------------------------------- offcanvas
+ *
+ * PLAN §11.10. The modal's own <dialog>, anchored to an edge of the viewport
+ * instead of hanging from a row — which is why the component extends Modal
+ * rather than resembling it.
+ *
+ * Two of the three dimensions are the viewport's: a side drawer is --cells
+ * wide and as many whole rows tall as the viewport holds, a top or bottom one
+ * is --rows tall and as many whole columns wide. The leftover sub-cell sliver
+ * at each end is the same one .screen and .statusbar-fixed leave.
+ *
+ * The slide is a translate of a whole number of cells, driven by the behavior
+ * layer stepping --wt-slide down to zero: 0 is in place, --cells (or --rows)
+ * is entirely off its edge. Each variant picks the axis and the sign, so the
+ * JS writes one unitless number and never knows which edge it is on.
+ */
+dialog.offcanvas {
+  --cells: 28;
+  --rows: 8;
+
+  position: fixed;
+  margin: 0;
+  padding: 1lh 2ch;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: auto;
+  z-index: var(--wt-z-offcanvas);
+
+  /*
+   * The UA stylesheet gives a dialog `max-height: calc(100% - 6px - 2em)`,
+   * which clamps a full-height drawer to 986px of a 1024px viewport — 49.3
+   * rows, and so off the grid by two thirds of a row. Both clamps are replaced
+   * with the rounded viewport rather than removed, because a drawer declared
+   * wider than the terminal should still stop at the terminal's edge.
+   */
+  max-width: round(down, 100%, 1ch);
+  max-height: round(down, 100dvh, 1lh);
+}
+
+.offcanvas-left,
+.offcanvas-right {
+  top: 0;
+  width: min(calc(var(--cells) * 1ch), round(down, 100%, 1ch));
+  height: round(down, 100dvh, 1lh);
+}
+
+.offcanvas-top,
+.offcanvas-bottom {
+  left: 0;
+  right: 0;
+  width: round(down, 100%, 1ch);
+  margin-inline: auto;
+  height: min(calc(var(--rows) * 1lh), round(down, 100dvh, 1lh));
+}
+
+.offcanvas-left { left: 0; transform: translateX(calc(var(--wt-slide, 0) * -1ch)); }
+.offcanvas-right { right: 0; transform: translateX(calc(var(--wt-slide, 0) * 1ch)); }
+.offcanvas-top { top: 0; transform: translateY(calc(var(--wt-slide, 0) * -1lh)); }
+.offcanvas-bottom { top: auto; bottom: 0; transform: translateY(calc(var(--wt-slide, 0) * 1lh)); }
+
+/* The dim behind a drawer is a sibling, not a child: see offcanvas.js. */
+dialog.offcanvas::backdrop {
+  background: none;
+}
