@@ -36,6 +36,8 @@
   /* A dropdown is above the status bar, because a dropdown in a status bar is
      most of what a status bar is for. */
   --wt-z-dropdown: 15;
+  /* A tip can sit on a menu item, so it is the rung above a dropdown. */
+  --wt-z-tip: 17;
   --wt-z-toast: 20;
   --wt-z-backdrop: 30;
   --wt-z-modal: 31;

@@ -476,12 +476,13 @@ describe('overlay', () => {
         content: read('--wt-z-content'),
         statusbar: read('--wt-z-statusbar'),
         dropdown: read('--wt-z-dropdown'),
+        tip: read('--wt-z-tip'),
         toast: read('--wt-z-toast'),
         backdrop: read('--wt-z-backdrop'),
         modal: read('--wt-z-modal'),
       };
     });
-    const order = ['content', 'statusbar', 'dropdown', 'toast', 'backdrop', 'modal'];
+    const order = ['content', 'statusbar', 'dropdown', 'tip', 'toast', 'backdrop', 'modal'];
     for (const name of order) assert.ok(Number.isFinite(z[name]), `--wt-z-${name} is not a number`);
     for (let i = 1; i < order.length; i++) {
       assert.ok(z[order[i]] > z[order[i - 1]], `${order[i]} (${z[order[i]]}) must sit above ${order[i - 1]} (${z[order[i - 1]]})`);
@@ -3057,7 +3058,7 @@ describe('dropdown', () => {
       // the trigger can actually be seen.
       el.scrollIntoView({ block: 'center' });
       d.show();
-      const menu = el.querySelector(':scope > .dropdown-menu');
+      const menu = el.querySelector(':scope > .dropdown-menu, .tip');
       const summary = el.querySelector(':scope > summary');
       const screen = document.querySelector('.screen');
       const m = menu.getBoundingClientRect();
@@ -3306,6 +3307,287 @@ describe('dropdown', () => {
     assert.equal(r.visible, true, 'the menu is hidden with no script to show it');
     assert.ok(offGrid(r.w, c.ch) < TOL, `the static menu is ${r.w}px wide`);
     assert.ok(offGrid(r.h, c.lh) < TOL, `the static menu is ${r.h}px tall`);
+    await ctx.close();
+  });
+});
+
+// ------------------------------------------------------------------- tooltip
+//
+// PLAN §11.10. An inverse strip against the trigger's edge, with no arrow: a
+// CSS triangle is a sub-cell shape and the glyph that would stand in for one
+// is outside the single-cell range, so the bubble sits flush instead.
+//
+// Two forms, and the pair of assertions that matter is that both exist: a
+// pseudo-element with no script, and a real element once the module is there,
+// because a pseudo-element cannot be the target of aria-describedby and
+// cannot be flipped away from a viewport edge.
+describe('tooltip', () => {
+  async function closeAll() {
+    await page.evaluate(() => {
+      for (const el of document.querySelectorAll('.tip')) {
+        const t = window.Webterm.get('tooltip', el);
+        if (t) t.hide();
+      }
+      window.scrollTo(0, 0);
+    });
+  }
+
+  test('the bubble is a whole number of cells and rows', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const out = [];
+      for (const id of ['#tip-host', '#tip-long']) {
+        const el = document.querySelector(id);
+        el.scrollIntoView({ block: 'center' });
+        const t = window.Webterm.tip(el);
+        t.show();
+        const b = t.bubble.getBoundingClientRect();
+        // The limit is --cells, which is a default in the stylesheet rather
+        // than a declared property, so it is read off the used max-width.
+        out.push({ id, w: b.width, h: b.height, limit: Number.parseFloat(getComputedStyle(t.bubble).maxWidth) });
+        t.hide();
+      }
+      return out;
+    });
+    for (const tip of r) {
+      assert.ok(offGrid(tip.w, cell.ch) < TOL, `${tip.id} is ${tip.w}px wide (${(tip.w / cell.ch).toFixed(3)} cells)`);
+      assert.ok(offGrid(tip.h, cell.lh) < TOL, `${tip.id} is ${tip.h}px tall`);
+      assert.ok(offGrid(tip.limit, cell.ch) < TOL, `${tip.id}'s limit is ${tip.limit}px, not a whole number of cells`);
+      assert.ok(tip.w <= tip.limit + TOL, `${tip.id} is ${tip.w}px wide, past its ${tip.limit}px limit`);
+    }
+    assert.ok(r[1].h >= 2 * cell.lh - TOL, 'the long tip did not wrap to more than one row');
+  });
+
+  test('it sits flush against the trigger, above by default', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tip-host');
+      el.scrollIntoView({ block: 'center' });
+      const t = window.Webterm.tip(el);
+      t.show();
+      const b = t.bubble.getBoundingClientRect();
+      const h = el.getBoundingClientRect();
+      const out = { gap: h.top - b.bottom, dx: b.x - h.x, below: el.classList.contains('tip-below'), end: el.classList.contains('tip-end') };
+      t.hide();
+      return out;
+    });
+    assert.ok(Math.abs(r.gap) < TOL, `the bubble is ${r.gap}px off its trigger`);
+    assert.ok(Math.abs(r.dx) < TOL, `the bubble starts ${r.dx}px from the trigger's left edge`);
+    assert.equal(r.below, false, 'a tip with room above it flipped below');
+    assert.equal(r.end, false);
+  });
+
+  // The vertical flip, measured at the bottom rather than the top: this
+  // section is near the end of a long page, so scrolling the trigger to the
+  // top of the viewport is not something the document can do. An authored
+  // .tip-below at the bottom edge has to come back above its trigger, which
+  // exercises the same decision from the other side and also checks that an
+  // authored preference is the side a flip is measured from.
+  test('an authored below-tip at the bottom of the viewport flips above', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tip-down');
+      const t = window.Webterm.tip(el);
+      el.scrollIntoView({ block: 'end' });
+      t.show();
+      const b = t.bubble.getBoundingClientRect();
+      const h = el.getBoundingClientRect();
+      const out = {
+        below: el.classList.contains('tip-below'),
+        gap: h.top - b.bottom,
+        over: b.bottom - document.documentElement.clientHeight,
+      };
+      t.hide();
+      window.scrollTo(0, 0);
+      return { ...out, restored: el.classList.contains('tip-below') };
+    });
+    assert.equal(r.below, false, 'the bubble stayed below a trigger at the bottom of the viewport');
+    assert.ok(Math.abs(r.gap) < TOL, `the flipped bubble is ${r.gap}px above its trigger`);
+    assert.ok(r.over <= TOL, `the flipped bubble still overflows the bottom by ${r.over}px`);
+    assert.equal(r.restored, true, 'the authored side was not restored on close');
+  });
+
+  test('a trigger at the right of the screen flips the bubble to the end', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tip-right');
+      el.scrollIntoView({ block: 'center' });
+      const t = window.Webterm.tip(el);
+      t.show();
+      const b = t.bubble.getBoundingClientRect();
+      const h = el.getBoundingClientRect();
+      const out = {
+        end: el.classList.contains('tip-end'),
+        right: b.right - h.right,
+        over: b.right - document.documentElement.clientWidth,
+        left: b.left,
+      };
+      t.hide();
+      return out;
+    });
+    assert.equal(r.end, true, 'a bubble wider than the room beside it did not flip');
+    assert.ok(Math.abs(r.right) < TOL, `the flipped bubble's right edge is ${r.right}px from the trigger's`);
+    assert.ok(r.over <= TOL, `the flipped bubble still overflows by ${r.over}px`);
+  });
+
+  // The reason the module replaces the pseudo-element at all.
+  test('the trigger describes itself with the bubble', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tip-host');
+      const t = window.Webterm.tip(el);
+      return {
+        describedby: el.getAttribute('aria-describedby'),
+        id: t.bubble.id,
+        text: t.bubble.textContent,
+        want: el.getAttribute('data-wt-tip'),
+        hidden: t.bubble.getAttribute('aria-hidden'),
+        role: t.bubble.getAttribute('role'),
+        // The trigger's own text, with the bubble child left out: textContent
+        // would include it, which is a DOM fact and not an accessibility one.
+        own: [...el.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('').trim(),
+      };
+    });
+    assert.equal(r.describedby, r.id, 'the trigger does not point at its own bubble');
+    assert.equal(r.text, r.want);
+    // aria-hidden, which looks wrong and is not: a node referenced directly by
+    // aria-describedby is read even when it is hidden, and the bubble is a
+    // child of the trigger, so leaving it exposed puts the same text in the
+    // tree twice — once as the trigger's description and once as a tooltip
+    // node of its own. Both variants were read out of Chromium's AX tree
+    // before this was decided.
+    assert.equal(r.hidden, 'true', 'an exposed child bubble is read twice');
+    assert.equal(r.role, 'tooltip', 'the role stays right for a page that exposes it');
+    assert.equal(r.own, 'charlie', `the trigger's own text is now "${r.own}"`);
+  });
+
+  test('the module stands the pseudo-element down', async () => {
+    const content = await page.evaluate(() => {
+      const el = document.querySelector('#tip-host');
+      window.Webterm.tip(el);
+      return {
+        after: getComputedStyle(el, '::after').content,
+        ready: document.documentElement.dataset.wtReady,
+        bubbles: el.querySelectorAll('.tip-bubble').length,
+      };
+    });
+    assert.equal(content.ready, '1');
+    assert.equal(content.after, 'none', 'both bubbles would show at once');
+    assert.equal(content.bubbles, 1);
+  });
+
+  // The delay is time, not motion, so it runs on the clock whatever the motion
+  // preference is — and it is the one timer a tooltip gets.
+  test('hover opens it after the delay and a leave closes it at once', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#tip-host');
+      el.scrollIntoView({ block: 'center' });
+      const t = window.Webterm.tip(el);
+      clock.pause();
+      el.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false }));
+      const waiting = { open: t.open, jobs: clock.finiteJobs };
+      clock.step(1);
+      const half = t.open;
+      clock.step(4);
+      const opened = t.open;
+      el.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }));
+      const closed = { open: t.open, jobs: clock.finiteJobs };
+      clock.resume();
+      return { waiting, half, opened, closed };
+    });
+    assert.equal(r.waiting.open, false, 'the tip opened before its delay');
+    assert.ok(r.waiting.jobs > 0, 'the delay was not scheduled on the clock');
+    assert.equal(r.half, false, 'the delay was one tick, not the configured wait');
+    assert.equal(r.opened, true, 'the tip never opened');
+    assert.equal(r.closed.open, false, 'a leave must close it at once');
+    assert.equal(r.closed.jobs, 0, 'a closed tip left a timer running');
+  });
+
+  test('focus opens it with no delay and blur closes it', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tip-host');
+      el.scrollIntoView({ block: 'center' });
+      const t = window.Webterm.tip(el);
+      el.focus({ preventScroll: true });
+      const focused = t.open;
+      el.blur();
+      return { focused, blurred: t.open };
+    });
+    assert.equal(r.focused, true, 'keyboard focus did not open the tip');
+    assert.equal(r.blurred, false);
+  });
+
+  test('Escape dismisses it', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tip-host');
+      const t = window.Webterm.tip(el);
+      t.show();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      return t.open;
+    });
+    assert.equal(r, false, 'Escape left the tip open');
+  });
+
+  test('the four lifecycle events fire in order and show is cancelable', async () => {
+    await closeAll();
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tip-host');
+      const t = window.Webterm.tip(el);
+      const log = [];
+      const types = ['wt:tooltip:show', 'wt:tooltip:shown', 'wt:tooltip:hide', 'wt:tooltip:hidden'];
+      const handler = (e) => log.push(e.type);
+      for (const ty of types) el.addEventListener(ty, handler);
+      t.show();
+      t.hide();
+      for (const ty of types) el.removeEventListener(ty, handler);
+
+      const block = (e) => e.preventDefault();
+      el.addEventListener('wt:tooltip:show', block);
+      t.show();
+      const blocked = t.open;
+      el.removeEventListener('wt:tooltip:show', block);
+      t.hide();
+      return { log, blocked };
+    });
+    assert.deepEqual(r.log, ['wt:tooltip:show', 'wt:tooltip:shown', 'wt:tooltip:hide', 'wt:tooltip:hidden']);
+    assert.equal(r.blocked, false, 'a prevented show opened the tip anyway');
+  });
+
+  // §11.1: the static form is the pseudo-element, and it is the attribute's
+  // text on a grid-exact strip.
+  test('with no script the pseudo-element is the tooltip', async () => {
+    const ctx = await browser.newContext({
+      deviceScaleFactor: 1,
+      viewport: { width: 1280, height: 1024 },
+      javaScriptEnabled: false,
+    });
+    const quiet = await ctx.newPage();
+    await quiet.goto(`${server.origin}/test/behavior.html`);
+    await quiet.waitForTimeout(200);
+    const c = await cellSize(quiet);
+    await quiet.hover('#tip-host');
+    const r = await quiet.evaluate(() => {
+      const el = document.querySelector('#tip-host');
+      const after = getComputedStyle(el, '::after');
+      return {
+        content: after.content,
+        want: el.getAttribute('data-wt-tip'),
+        display: after.display,
+        bubbles: el.querySelectorAll('.tip-bubble').length,
+        w: after.width,
+        h: after.height,
+      };
+    });
+    assert.equal(r.bubbles, 0, 'a bubble element exists with no script to have built it');
+    assert.match(r.content, /^attr\(data-wt-tip\)|charlie|412/, `the pseudo-element content is ${r.content}`);
+    assert.notEqual(r.display, 'none', 'the static tooltip does not show on hover');
+    const w = Number.parseFloat(r.w);
+    const h = Number.parseFloat(r.h);
+    assert.ok(offGrid(w, c.ch) < TOL, `the static bubble is ${r.w} wide`);
+    assert.ok(offGrid(h, c.lh) < TOL, `the static bubble is ${r.h} tall`);
     await ctx.close();
   });
 });

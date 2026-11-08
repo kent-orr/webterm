@@ -431,6 +431,31 @@ echo      replica  0.12  ok</pre>
     </div>
   </div>
 
+  <h2 class="mt-2">Tooltip</h2>
+  <p>An inverse strip against the trigger’s edge, no arrow: a CSS triangle is a
+  sub-cell shape and the glyph that would stand in for one is not single-cell in
+  all three fonts. With no script it is a <code>::after</code> on hover; the
+  module replaces that with a real element, which is the only way to be the
+  target of <code>aria-describedby</code> or to flip at a viewport edge.</p>
+
+  <p class="mt-1">Replica
+    <span class="tip" id="tip-host" data-wt-tip="412 segments behind the primary" tabindex="0">charlie</span>
+    is behind, and
+    <span class="tip" id="tip-long" data-wt-tip="degraded for nineteen minutes, with no write acknowledgements since 11:04 and a growing segment backlog" style="--cells: 36" tabindex="0">degraded</span>
+    besides.</p>
+
+  <p class="mt-1">An authored
+    <span class="tip tip-below" id="tip-down" data-wt-tip="below unless there is no room below" tabindex="0">below</span>
+    tip flips above when it reaches the bottom of the viewport, and goes back
+    when it closes.</p>
+
+  <div class="row mt-1">
+    <div class="col"></div>
+    <div class="col-12">
+      <span class="tip" id="tip-right" data-wt-tip="pushed against the right edge of the screen" tabindex="0">edge</span>
+    </div>
+  </div>
+
   <div class="statusbar statusbar-fixed">
     <span>webterm</span>
     <span class="spacer"></span>

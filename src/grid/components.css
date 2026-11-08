@@ -739,3 +739,89 @@ dialog.modal > .backdrop {
   left: auto;
   right: 0;
 }
+
+/*
+ * ------------------------------------------------------------------- tooltip
+ *
+ * PLAN §11.10. An inverse strip against an edge of the trigger — the same
+ * anchoring as the dropdown, so the bubble is on the grid without anything
+ * computing a position, and the flip is a change of anchor.
+ *
+ * No arrow. A CSS triangle is a sub-cell shape, and the glyph that would stand
+ * in for one is in Geometric Shapes, outside the range that measures a single
+ * cell in all three bundled fonts (glyphs.css). A TUI hint has no arrow
+ * either; it is a strip against the thing it describes.
+ *
+ * Two bubbles, one appearance. `.tip::after` is the whole component with no
+ * script — the text comes out of the attribute and hover or focus shows it.
+ * The behavior layer builds a real `.tip-bubble` instead, because a
+ * pseudo-element cannot be the target of aria-describedby and cannot be
+ * flipped away from a viewport edge, and the rule at the end of this block
+ * stands the pseudo-element down once the module has loaded. That dependency
+ * points the allowed way: the static form never needs the JS (PLAN §11.1).
+ */
+.tip {
+  position: relative;
+}
+
+.tip::after,
+.tip > .tip-bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: var(--wt-z-tip);
+
+  /*
+   * max-content, not fit-content: an absolutely positioned box shrinks to fit
+   * its containing block, which here is the trigger — a word or two wide — so
+   * fit-content wraps a tooltip to the width of the thing it describes.
+   * max-content asks for the text's own width and max-width bounds it, and
+   * both of those are whole numbers of cells.
+   */
+  width: max-content;
+  max-width: calc(var(--cells, 40) * 1ch);
+  padding: 0 1ch;
+
+  background: var(--fg);
+  color: var(--bg);
+  text-align: left;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+
+.tip::after {
+  content: attr(data-wt-tip);
+  display: none;
+}
+
+.tip:hover::after,
+.tip:focus::after,
+.tip:focus-visible::after,
+.tip:focus-within::after {
+  display: block;
+}
+
+.tip > .tip-bubble {
+  display: none;
+}
+
+.tip-open > .tip-bubble {
+  display: block;
+}
+
+.tip-below::after,
+.tip-below > .tip-bubble {
+  bottom: auto;
+  top: 100%;
+}
+
+.tip-end::after,
+.tip-end > .tip-bubble {
+  left: auto;
+  right: 0;
+}
+
+/* The handover. One bubble at a time. */
+[data-wt-ready] .tip::after {
+  content: none;
+}

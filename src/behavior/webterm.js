@@ -27,6 +27,7 @@ import { Modal, confirm, prompt } from './modal.js';
 import { Collapse } from './collapse.js';
 import { Tabs } from './tabs.js';
 import { Dropdown } from './dropdown.js';
+import { Tooltip } from './tooltip.js';
 
 export const version = '0.1.0';
 
@@ -51,7 +52,7 @@ export { Progress, fillCells, setLoading, isLoading };
 export { Placeholder, CHARSETS };
 export { Toast, toast, toastStack, clearToasts, toastQueue };
 export { Modal, confirm, prompt };
-export { Collapse, Tabs, Dropdown };
+export { Collapse, Tabs, Dropdown, Tooltip };
 
 
 /* ---------------------------------------------------------------- data API */
@@ -117,10 +118,17 @@ register('modal', Modal);
 register('collapse', Collapse);
 register('tabs', Tabs);
 register('dropdown', Dropdown);
+register('tooltip', Tooltip);
 
 /** The placeholder on `el`, mounting it if it has none. */
 export function ph(el) {
   return getOrCreate('placeholder', el);
+}
+
+/** The tooltip on `el`, mounting it if it has none, with optional new text. */
+export function tip(el, text = null) {
+  const instance = getOrCreate('tooltip', el);
+  return text === null ? instance : instance.text(text);
 }
 
 const api = {
@@ -157,6 +165,8 @@ const api = {
   Collapse,
   Tabs,
   Dropdown,
+  Tooltip,
+  tip,
 };
 
 if (typeof window !== 'undefined') {
