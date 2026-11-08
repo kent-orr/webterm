@@ -1598,6 +1598,25 @@ describe('toast adoption', () => {
     assert.equal(result.mounted, true, 'init did not adopt the server-rendered toast');
     assert.equal(result.edges, 1);
   });
+
+  // init() is documented as safe to repeat, and a page that inserts markup
+  // will call it again. Anything the layer constructed directly has to be in
+  // the registry, or the second init() mounts a second instance on it: two
+  // close listeners on a dialog means two scroll unlocks for one close.
+  test('re-running init does not mount a second instance on live components', async () => {
+    const result = await page.evaluate(() => {
+      const t = window.Webterm.toast('mounted once', { timeout: 0 });
+      const before = window.Webterm.get('toast', t.el);
+      window.Webterm.init();
+      const after = window.Webterm.get('toast', t.el);
+      const stacked = document.querySelectorAll('.toast-stack-br > .toast').length;
+      window.Webterm.clearToasts();
+      return { registered: before !== null, same: before === after, stacked };
+    });
+    assert.ok(result.registered, 'toast() did not register its instance');
+    assert.ok(result.same, 'init() replaced the instance on a live toast');
+    assert.equal(result.stacked, 1);
+  });
 });
 
 describe('toast stack', () => {

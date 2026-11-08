@@ -435,8 +435,11 @@ webterm/
 6. **Tests** — Playwright checks: every `.box` edge lands on an integer
    `ch`/`lh` boundary; borders have no sub-cell gaps (pixel diff).
 7. **Skin** — `.crt`.
-8. **Behavior** — layer 4 (§11), in five phases: foundation, loading,
-   placeholders, toasts, modals, then docs.
+8. **Behavior** — layer 4 (§11). ✅
+   Foundation, loading, placeholders, toasts and modals, each spec-first;
+   `test/behavior.spec.js` holds the layer to §2, sampling cell exactness
+   mid-animation and loading the whole page with JavaScript disabled.
+   Collapse, dropdown, tabs, tooltip and offcanvas are the next pass.
 9. **Docs site** — built with webterm itself.
 10. **Generator** — resolve §8 and automate themes.
 

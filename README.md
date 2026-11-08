@@ -24,7 +24,10 @@ boundary and the illusion breaks as soon as you look closely. Here the grid
 itself is character-faithful: resize the window and the page snaps to a whole
 column count.
 
-CSS only. No JavaScript, no build step, no dependencies.
+The core is CSS only, with no dependencies and no build step. An optional
+behavior layer adds toasts, loading states, placeholders and modals — and the
+CSS never depends on it, so every one of those has a static form that renders
+with no script loaded.
 
 ## Quick start
 
@@ -64,6 +67,16 @@ anything you share, pin a release tag instead:
 
 `raw.githubusercontent.com` does **not** work. It serves CSS as `text/plain`
 with `X-Content-Type-Options: nosniff`, so the browser refuses to apply it.
+
+For toasts, loading states, placeholders and modals, add the behavior layer —
+one ES module, no build step, nothing else to install:
+
+```html
+<script type="module" src="https://cdn.jsdelivr.net/gh/kent-orr/webterm@main/src/behavior/webterm.js"></script>
+```
+
+It is optional: the stylesheet above is a whole framework without it. See
+[Behavior](#behavior).
 
 ### Self-hosted
 
@@ -280,6 +293,207 @@ Focus is inverse video, never an outline ring.
   `.statusbar-fixed` pins it to the bottom.
 - `.kv` — `key: value` rows with keys in a fixed column.
 
+Toasts, modals, spinners and placeholders are in [Behavior](#behavior): their
+appearance is CSS like everything here, and the optional module drives them.
+
+## Behavior
+
+Everything above is CSS. The behavior layer is one optional ES module that adds
+the four things a page usually needs a framework for — toasts, loading states,
+placeholders and modals — without a build step or a dependency:
+
+```html
+<script type="module" src=".../src/behavior/webterm.js"></script>
+```
+
+It sets `window.Webterm`, so the data attributes below work whether or not you
+write any JavaScript yourself.
+
+**The CSS never depends on the JS.** Every component here has a complete static
+form that renders with no script loaded; the module only drives transitions
+between states. A page whose module fails to load degrades to static boxes
+rather than invisible ones, and `test/behavior.spec.js` loads the whole kitchen
+sink with JavaScript disabled to keep that true.
+
+Two conventions run through all of it. Everything that is not a class is
+namespaced — attributes are `data-wt-*`, events are `wt:component:verb` with
+the before-events cancelable. And **motion is cell-stepped**: a terminal does
+not tween, so every animation advances a whole cell or a whole row on
+`--wt-tick` (60ms), and `prefers-reduced-motion` means the final state
+immediately rather than a faster animation.
+
+### Loading
+
+```html
+<span class="spin spin-quad"></span>
+
+<span class="progress" style="--cells: 24; --fill: 13"><span class="bar"></span></span>
+<span class="progress-label">54%</span>
+
+<span class="progress progress-indeterminate" style="--cells: 24"><span class="bar"></span></span>
+```
+
+Spinners and the indeterminate bar animate in CSS and need no script at all,
+which is the point: one driven by JavaScript stops exactly when the main thread
+is busy. A spinner is a one-cell window over a run of frames, stepped a cell at
+a time. Five sets ship: `.spin-line`, `.spin-quad`, `.spin-half`, `.spin-bar`
+and `.spin-shade`.
+
+There is deliberately no braille spinner. It is what every terminal tool uses,
+and it is 12px wide in a 10px cell in JetBrains Mono and DejaVu Sans Mono —
+correct only in Iosevka. The arc, circle and triangle sets each fail in a
+different subset of the three. A frame set may use ASCII and U+2500–259F, which
+is the range the bundled fonts cover in full, and the spec measures every glyph
+against `1ch` in each font.
+
+`.progress-label` is a fixed `4ch`, so `9%` growing to `100%` does not shove the
+bar it labels sideways.
+
+A loading state hides its content rather than removing it, so nothing resizes
+while it waits:
+
+```html
+<button class="btn loading">
+  <span class="loading-label">save</span>
+  <span class="spin spin-quad"></span>
+</button>
+```
+
+`Webterm.setLoading(el, true)` does that to any element, wrapping the children
+it should hide and leaving a box's `.box-edge` and `.box-title` alone. The
+spinner is centered on a whole cell rather than on 50%.
+
+`Webterm.getOrCreate('progress', el).set(3, 8)` converts a value to whole cells.
+`data-wt-progress="0.54"` is watched, so a server-rendered attribute swap is the
+whole API for htmx or Shiny. The rounding is floor, with two exceptions that
+stop a bar lying: never empty while there is progress, never full until there is
+none left.
+
+### Placeholders
+
+The one that is new rather than ported. A placeholder is locked to the cell
+count of the real text, and the value arrives by settling into it — every cell
+shows a random character until its turn, then takes its real one and keeps it:
+
+```html
+<span class="ph" data-wt-ph>alpha-7</span>
+```
+
+Because the width is the real string's width from the first frame, resolution
+causes no layout shift at all. That is what a character grid can promise and a
+rem-based skeleton cannot.
+
+| attribute          | values                                       |
+|--------------------|----------------------------------------------|
+| `data-wt-ph`       | empty to run on load, `hold` to wait          |
+| `data-wt-order`    | `ltr` `rtl` `random` `center` `ends`          |
+| `data-wt-charset`  | `alnum` `hex` `binary` `symbols` `blocks` `mixed` |
+| `data-wt-duration` | milliseconds for the whole settle             |
+| `data-wt-cycle`    | random characters a cell shows before settling |
+
+Whitespace never scrambles: the shape of a value — how many words, how long —
+is most of what a reader is waiting for. Charsets are held to the same
+single-cell rule as the spinner frames, which is why there is no katakana one.
+
+`.ph-area` is the same settle in two dimensions, over content that is already on
+the grid:
+
+```html
+<div class="ph-area" style="--cells: 44; --rows: 5">
+  <pre>alpha     primary  0.41  ok</pre>
+  <span class="ph-mask" aria-hidden="true"></span>
+</div>
+```
+
+With no script that mask is a flat `░` skeleton. With one, it fills with noise
+that settles into the table — and since whitespace is pre-settled, the columns
+are there from the first frame and the values arrive into them.
+
+Three states make it useful rather than decorative: `Webterm.ph(el).hold()`
+while a fetch is in flight, `.resolve(text)` on a value that may differ from the
+authored one, and `.fail()`. The declared cell count outlives the animation, so
+resolving onto longer text clips rather than moving the page. The real text sits
+in a clipped `.ph-real` that assistive technology reads from the first frame,
+and the noise is `aria-hidden`.
+
+### Toasts
+
+```js
+Webterm.toast('replica charlie is behind', { level: 'warn', timeout: 6000 })
+```
+
+A toast is a `.box` in a stack pinned to a corner, so it inherits the border,
+the title and the semantic tints. The stack is created on first use, or written
+by hand:
+
+```html
+<div class="toast-stack toast-stack-br" role="status" aria-live="polite">
+  <div class="box toast toast-warn">
+    <span class="box-edge"></span>
+    <span class="box-title">warn</span>
+    <p class="toast-body">Replica charlie is behind.</p>
+  </div>
+</div>
+```
+
+Corners are `.toast-stack-tl`, `-tr`, `-bl` and `-br`; a bottom stack clears a
+pinned `.statusbar-fixed`. Levels are `.toast-ok`, `-warn`, `-error` and
+`-info`, and an error toast takes `role="alert"` so it interrupts rather than
+waiting its turn in the polite queue.
+
+The message types in, and the box does not move while it does — the tail that
+has not arrived is laid out but hidden, so the wrapping never changes. **The
+bottom border is the countdown**: a cell at a time, from the right, the `─` run
+turns to `░` until the whole edge is shaded and the toast goes with it.
+
+Hovering holds the timer. `Webterm.config.toastMax` (4) bounds how many are
+visible and the rest queue. An identical consecutive message is counted as `×N`
+on the existing toast rather than stacked. `Webterm.clearToasts()` empties
+everything.
+
+The timeout is time, not motion, so reduced motion does not collapse it — only
+the typing stops.
+
+### Modals
+
+A native `<dialog>` that is also a box, so the focus trap, `Escape`, the inert
+background and the top-layer stacking are the browser's work:
+
+```html
+<button class="btn" data-wt-toggle="modal" data-wt-target="#confirm">open</button>
+
+<dialog class="box modal modal-60" id="confirm">
+  <span class="box-edge"></span>
+  <span class="box-title">confirm</span>
+  <p class="modal-body">Drop replica charlie?</p>
+  <div class="modal-actions">
+    <button class="btn btn-error" data-wt-dismiss="modal" value="yes">Yes</button>
+    <button class="btn" data-wt-dismiss="modal" value="no" autofocus>Cancel</button>
+  </div>
+</dialog>
+```
+
+Widths are `.modal-40`, `.modal-60` and `.modal-80` in cells, clamped to the
+screen's column count. The dialog is centered on a whole cell and hangs from
+`--wt-dialog-top`, because centering something whose height CSS does not know
+cannot be snapped to a row. `data-wt-static` refuses a backdrop click.
+
+The dim behind it is not a translucent black — the grid layer names no color, so
+it is a run of block-shade glyphs painted in `--bg`, dithering the page the way
+a TUI does.
+
+And because a terminal interface asks small questions constantly:
+
+```js
+if (await Webterm.confirm('Drop replica charlie?')) drop()
+const host = await Webterm.prompt({ label: 'host', fieldCells: 24 })
+```
+
+Opening a modal locks page scroll without changing the column count, which is
+the one thing a character grid has to get right here: `reset.css` reserves the
+scrollbar gutter permanently, so the scrollbar appearing and disappearing never
+re-rounds `.screen` and reflows the page behind the dialog.
+
 ## Theming
 
 A theme sets color custom properties and nothing else — 16 ANSI slots plus
@@ -349,9 +563,10 @@ Re-run both calibration steps after changing a font file or the Chromium
 version, then copy each ratio into `tokens.css` — the spec fails if they
 disagree.
 
-Pages worth opening: `test/components.html` (every component, with live font
-and theme pickers and a cell/row readout), `test/default-theme.html` (the
-framework with no theme link), `test/metrics.html` (the calibration harness).
+Pages worth opening: `test/components.html` (every CSS component, with live
+font and theme pickers and a cell/row readout), `test/behavior.html` (the
+behavior layer, with a motion switch), `test/default-theme.html` (the framework
+with no theme link), `test/metrics.html` (the calibration harness).
 
 `PLAN.md` is the design document: the rules, the layer architecture, the
 measured font metrics, and the reasoning behind each rejected alternative.
@@ -367,6 +582,7 @@ widths have to match what ships. Rename a class and the README fails with it.
 | `themes.spec.js`                      | 206 pass — theme contract and contrast       |
 | `readme.spec.js`                      | 8 pass — every class, set and license claim this file makes |
 | `grid.spec.js` + `default.spec.js`    | 51 pass — integer cells, continuous borders, the default paints and a `<link>` beats it |
+| `behavior.spec.js`                    | 117 pass — the behavior layer, cell-exact mid-animation, and the whole page with scripts disabled |
 | `metrics.spec.js`                     | 240 pass, **100 fail** — known, see below    |
 
 The 100 failures are a wrong assertion, not a layout bug. `metrics.spec.js`
@@ -377,7 +593,7 @@ matters still holds (N cells is N equal whole-px columns, regular and bold, no
 drift with N); the em-advance prediction the test checks is not what the
 browser uses. See PLAN §8.
 
-`npm test` runs every spec in one process — 605 tests, 505 pass, the same 100
+`npm test` runs every spec in one process — 722 tests, 622 pass, the same 100
 fail. In roughly one run in three, three of the browser assertions come back
 cancelled rather than passed; re-running clears it, and running a spec on its
 own never shows it. Treat a cancelled assertion as "run it again", not as a
@@ -396,8 +612,11 @@ result.
   leftover space. Use `.col-N` where exactness matters.
 - **No wide-glyph support.** CJK and emoji occupy two cells; nothing accounts
   for it.
-- **CSS only.** Dropdowns, modals and other interactive behavior are out of
-  scope — bring your own JavaScript.
+- **The behavior layer is Chromium-tested only**, like the calibration. It
+  uses `<dialog>`, `:has()` and `round()`, all of which are supported in
+  current Firefox and Safari but are not covered by a spec run here.
+- **Dropdowns, tabs, tooltips, collapse and offcanvas are not written yet.**
+  The conventions in `src/behavior/` are designed to carry them; see PLAN §11.
 
 ## License
 

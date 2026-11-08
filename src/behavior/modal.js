@@ -18,6 +18,7 @@
 import { createBox, ensureEdge } from './lib/box.js';
 import { emit } from './lib/events.js';
 import { lockScroll, unlockScroll } from './lib/scroll.js';
+import { attach } from './lib/registry.js';
 
 export class Modal {
   static selector = 'dialog.modal';
@@ -165,7 +166,9 @@ export function confirm(message, { title = 'confirm', cells = 48, yes = 'Yes', n
     ],
   });
 
-  const modal = new Modal(el);
+  // In the registry: a later init() would otherwise attach a second Modal,
+  // and a second close listener releases a second scroll lock for one close.
+  const modal = attach('modal', el, new Modal(el));
   return new Promise((resolve) => {
     el.addEventListener('close', () => {
       const answer = el.returnValue === 'yes';
@@ -213,7 +216,7 @@ export function prompt({
     ],
   });
 
-  const modal = new Modal(el);
+  const modal = attach('modal', el, new Modal(el));
   return new Promise((resolve) => {
     el.addEventListener('close', () => {
       const answer = el.returnValue === 'ok' ? field.value : null;

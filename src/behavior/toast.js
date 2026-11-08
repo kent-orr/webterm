@@ -25,6 +25,7 @@ import { animate, delay, motionEnabled, tickMs } from './lib/motion.js';
 import { createBox, ensureEdge, boxTitle } from './lib/box.js';
 import { emit } from './lib/events.js';
 import { screenCols } from './lib/cells.js';
+import { attach } from './lib/registry.js';
 
 const POSITIONS = ['tl', 'tr', 'bl', 'br'];
 const DEFAULT_POSITION = 'br';
@@ -290,7 +291,9 @@ export function toast(message, options = {}) {
   body.textContent = message;
   el.append(body);
 
-  const instance = new Toast(el, { ...options, level, message });
+  // In the registry, so a later init() adopts it rather than mounting a
+  // second instance on the same element.
+  const instance = attach('toast', el, new Toast(el, { ...options, level, message }));
 
   if (visible.length >= config.toastMax) {
     queue.push({ toast: instance, stack });

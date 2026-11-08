@@ -19,6 +19,7 @@ import * as motion from './lib/motion.js';
 import { createBox, ensureEdge, boxTitle } from './lib/box.js';
 import { emit } from './lib/events.js';
 import { lockScroll, unlockScroll, scrollLocks } from './lib/scroll.js';
+import { register, get, getOrCreate, attach, componentFor, init } from './lib/registry.js';
 import { Progress, fillCells, setLoading, isLoading } from './progress.js';
 import { Placeholder, CHARSETS } from './placeholder.js';
 import { Toast, toast, toastStack, clearToasts, toastQueue, useConfig } from './toast.js';
@@ -42,61 +43,12 @@ export const config = {
 
 export { cells, motion, createBox, ensureEdge, boxTitle, emit };
 export { lockScroll, unlockScroll, scrollLocks };
+export { register, get, getOrCreate, attach, init };
 export { Progress, fillCells, setLoading, isLoading };
 export { Placeholder, CHARSETS };
 export { Toast, toast, toastStack, clearToasts, toastQueue };
 export { Modal, confirm, prompt };
 
-
-/* ---------------------------------------------------------------- registry */
-
-const components = new Map();
-const instances = new WeakMap();
-
-/**
- * Register a component class. A class with a static `selector` is mounted on
- * every match by init(); one without is only ever constructed on demand.
- */
-export function register(name, Component) {
-  components.set(name, Component);
-  return Component;
-}
-
-/** The instance of `name` on `el`, or null. */
-export function get(name, el) {
-  const byName = instances.get(el);
-  return (byName && byName.get(name)) || null;
-}
-
-/**
- * The instance of `name` on `el`, constructing it the first time. One instance
- * per element per component, cached on the element, so init() is idempotent
- * and a page can call it again after inserting markup (§11.2 rule 2).
- */
-export function getOrCreate(name, el) {
-  const existing = get(name, el);
-  if (existing) return existing;
-  const Component = components.get(name);
-  if (!Component) throw new Error(`webterm: no component registered as "${name}"`);
-  const instance = new Component(el);
-  let byName = instances.get(el);
-  if (!byName) {
-    byName = new Map();
-    instances.set(el, byName);
-  }
-  byName.set(name, instance);
-  return instance;
-}
-
-/** Mount every registered component found under `root`. Safe to repeat. */
-export function init(root = document) {
-  for (const [name, Component] of components) {
-    if (!Component.selector) continue;
-    for (const el of root.querySelectorAll(Component.selector)) getOrCreate(name, el);
-  }
-  document.documentElement.dataset.wtReady = '1';
-  return root;
-}
 
 /* ---------------------------------------------------------------- data API */
 
@@ -113,7 +65,7 @@ export function init(root = document) {
 function resolveTarget(trigger, name) {
   const selector = trigger.getAttribute('data-wt-target');
   if (selector) return document.querySelector(selector);
-  const Component = components.get(name);
+  const Component = componentFor(name);
   return Component && Component.selector ? trigger.closest(Component.selector) : null;
 }
 
@@ -122,7 +74,7 @@ function onClick(event) {
   if (toggle) {
     const name = toggle.getAttribute('data-wt-toggle');
     const target = resolveTarget(toggle, name);
-    if (target && components.has(name)) {
+    if (target && componentFor(name)) {
       const instance = getOrCreate(name, target);
       if (typeof instance.toggle === 'function') {
         event.preventDefault();
@@ -135,7 +87,7 @@ function onClick(event) {
   const dismiss = event.target.closest ? event.target.closest('[data-wt-dismiss]') : null;
   if (dismiss) {
     const name = dismiss.getAttribute('data-wt-dismiss');
-    const Component = components.get(name);
+    const Component = componentFor(name);
     const host = Component && Component.selector ? dismiss.closest(Component.selector) : null;
     if (host) {
       const instance = get(name, host) || getOrCreate(name, host);
