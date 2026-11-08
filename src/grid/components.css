@@ -390,3 +390,125 @@
   overflow-wrap: anywhere;
   word-break: break-all;
 }
+
+/*
+ * ------------------------------------------------------------------ toasts
+ *
+ * PLAN §11.6. A toast is a .box in a stack pinned to a corner, which means
+ * nothing new has to be invented for its border, its title or its tint — it
+ * reuses .box and the semantic colors .alert already names.
+ *
+ * The static form needs no script:
+ *
+ *   <div class="toast-stack toast-stack-br" role="status" aria-live="polite">
+ *     <div class="box toast toast-warn">
+ *       <span class="box-edge"></span>
+ *       <span class="box-title">warn</span>
+ *       <p class="toast-body">Replica charlie is behind.</p>
+ *     </div>
+ *   </div>
+ */
+
+.toast-stack {
+  position: fixed;
+  z-index: var(--wt-z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: 1lh;
+  width: max-content;
+
+  /* The stack is a region, not a surface: clicks fall through its gaps. */
+  pointer-events: none;
+}
+
+.toast-stack > * {
+  pointer-events: auto;
+}
+
+.toast-stack-tl { top: 1lh; left: 1ch; }
+.toast-stack-tr { top: 1lh; right: 1ch; align-items: flex-end; }
+.toast-stack-bl { bottom: 1lh; left: 1ch; }
+.toast-stack-br { bottom: 1lh; right: 1ch; align-items: flex-end; }
+
+/*
+ * A bottom stack clears a pinned status bar, and only when there is one — the
+ * status bar is one row, so the toast needs one more row of offset to leave
+ * the usual gap between them.
+ */
+body:has(.statusbar-fixed) .toast-stack-bl,
+body:has(.statusbar-fixed) .toast-stack-br {
+  bottom: 2lh;
+}
+
+.toast {
+  width: calc(var(--cells, 40) * 1ch);
+  background: var(--bg);
+  --border: var(--fg);
+}
+
+.toast-ok { --border: var(--ok); color: var(--ok); }
+.toast-warn { --border: var(--warn); color: var(--warn); }
+.toast-error { --border: var(--error); color: var(--error); }
+.toast-info { --border: var(--info); color: var(--info); }
+
+.toast > .box-title { color: inherit; }
+
+.toast-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The message types in a few cells per tick. The tail that has not arrived yet
+ * is still laid out — hidden, not absent — so the glyph sequence never changes
+ * and neither does the wrapping. A toast that reflowed while typing would undo
+ * the one thing this framework is for.
+ */
+.toast-rest {
+  visibility: hidden;
+}
+
+/*
+ * The bottom border doubles as the countdown. The strip grows from the right a
+ * cell at a time, and what it paints is ░ rather than nothing:
+ *
+ *   └───────────────┘   just shown
+ *   └────────░░░░░░░░┘   half its time gone
+ *   └░░░░░░░░░░░░░░░┘   about to go
+ *
+ * Erasing the border instead was the first attempt and reads as damage, not
+ * as a countdown: the box looks broken and the far corner is left stranded on
+ * its own. Shading keeps the box whole and the bar obvious. A progress
+ * indicator out of a border the box was already drawing.
+ *
+ * It stops a cell short of each end so the corner glyphs survive to the last
+ * frame — they belong to the left and bottom runs (box.css).
+ */
+.toast-timer {
+  position: absolute;
+  bottom: 0;
+  right: 1ch;
+  height: 1lh;
+  width: calc(var(--wt-timer-cells, 0) * 1ch);
+  max-width: calc(100% - 2ch);
+  overflow: hidden;
+  white-space: pre;
+  background: var(--bg);
+  color: var(--border);
+  pointer-events: none;
+}
+
+.toast-timer::before {
+  content: var(--wt-run-shade) var(--wt-run-shade);
+}
+
+/* The dismiss control sits in the top border row, opposite the title. */
+.toast-close {
+  position: absolute;
+  top: 0;
+  right: 2ch;
+  height: 1lh;
+  padding: 0 1ch;
+  background: var(--bg);
+  color: inherit;
+}

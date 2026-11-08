@@ -20,6 +20,7 @@ import { createBox, ensureEdge, boxTitle } from './lib/box.js';
 import { emit } from './lib/events.js';
 import { Progress, fillCells, setLoading, isLoading } from './progress.js';
 import { Placeholder, CHARSETS } from './placeholder.js';
+import { Toast, toast, toastStack, clearToasts, toastQueue, useConfig } from './toast.js';
 
 export const version = '0.1.0';
 
@@ -40,6 +41,7 @@ export const config = {
 export { cells, motion, createBox, ensureEdge, boxTitle, emit };
 export { Progress, fillCells, setLoading, isLoading };
 export { Placeholder, CHARSETS };
+export { Toast, toast, toastStack, clearToasts, toastQueue };
 
 
 /* ---------------------------------------------------------------- registry */
@@ -173,8 +175,12 @@ export function scrollLocks() {
 
 /* ------------------------------------------------------------- components */
 
+// The toast module reads the same config object the page can edit.
+useConfig(config);
+
 register('progress', Progress);
 register('placeholder', Placeholder);
+register('toast', Toast);
 
 /** The placeholder on `el`, mounting it if it has none. */
 export function ph(el) {
@@ -204,6 +210,11 @@ const api = {
   Placeholder,
   CHARSETS,
   ph,
+  Toast,
+  toast,
+  toastStack,
+  clearToasts,
+  toastQueue,
 };
 
 if (typeof window !== 'undefined') {

@@ -666,9 +666,11 @@ A stack in any corner, each toast a `.box` with its `.box-edge`, a level
   clears `.statusbar-fixed` when it is bottom-anchored
 - entry is a **typed reveal**: the box draws, then the text appears `k` cells
   per tick, reusing the placeholder scheduler. Exit is immediate.
-- **the bottom border is the dismiss timer.** It erodes one cell per tick
-  until it is gone and the toast goes with it — a progress indicator obtained
-  for free out of a border the box already draws. `.toast-notimer` opts out.
+- **the bottom border is the dismiss timer.** A cell at a time, from the
+  right, the `─` run turns to `░` until the whole edge is shaded and the toast
+  goes with it — a progress indicator obtained for free out of a border the box
+  already draws. The first attempt erased the border instead, which reads as
+  damage rather than as a countdown and strands the far corner on its own.
 - pause on hover and on focus; a queue cap (`Webterm.config.toastMax`,
   default 4) with overflow queued, and identical consecutive messages
   collapsed into a `×N` counter in the title

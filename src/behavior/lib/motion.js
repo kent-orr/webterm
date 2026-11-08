@@ -65,6 +65,10 @@ function step(job) {
 function frame(now) {
   frameId = 0;
   for (const job of [...jobs]) {
+    if (job.paused) {
+      job.last = now;
+      continue;
+    }
     if (job.last === null) job.last = now;
     // Catch up if a frame was long, but never more than a few steps, so a tab
     // returning from the background does not replay a minute of animation.
@@ -85,21 +89,18 @@ function schedule() {
 }
 
 function inertHandle() {
-  return { cancel() {}, finish() {}, get ticked() { return 0; }, get live() { return false; } };
+  return {
+    cancel() {},
+    finish() {},
+    pause() {},
+    resume() {},
+    get ticked() { return 0; },
+    get live() { return false; },
+    get paused() { return false; },
+  };
 }
 
-/**
- * Run `onTick(i)` once per tick for `ticks` ticks, then `onDone()`.
- *
- * Returns a handle: cancel() drops the job without finishing it, finish()
- * jumps straight to onDone, and `ticked` reports how many steps have run.
- * With motion off, onDone runs now and nothing is scheduled.
- */
-export function animate({ ticks = Infinity, interval = null, onTick = null, onDone = null } = {}) {
-  if (!motionEnabled() || ticks <= 0) {
-    if (onDone) onDone();
-    return inertHandle();
-  }
+function start({ ticks, interval, onTick, onDone }) {
   const job = {
     i: 0,
     ticks,
@@ -108,6 +109,7 @@ export function animate({ ticks = Infinity, interval = null, onTick = null, onDo
     onTick,
     onDone,
     finished: false,
+    paused: false,
   };
   jobs.add(job);
   schedule();
@@ -119,9 +121,53 @@ export function animate({ ticks = Infinity, interval = null, onTick = null, onDo
     finish() {
       complete(job);
     },
+    /** Hold here. A toast under the cursor should not time out. */
+    pause() {
+      job.paused = true;
+    },
+    resume() {
+      job.paused = false;
+      job.last = null;
+      schedule();
+    },
     get ticked() { return job.i; },
     get live() { return !job.finished; },
+    get paused() { return job.paused; },
   };
+}
+
+/**
+ * Run `onTick(i)` once per tick for `ticks` ticks, then `onDone()`.
+ *
+ * This is *motion*: with motion off, onDone runs now, nothing is scheduled,
+ * and the caller lands on its final state in the same frame (§11.2 rule 6).
+ *
+ * Returns a handle: cancel() drops the job without finishing it, finish()
+ * jumps straight to onDone, pause()/resume() hold it, and `ticked` reports how
+ * many steps have run.
+ */
+export function animate({ ticks = Infinity, interval = null, onTick = null, onDone = null } = {}) {
+  if (!motionEnabled() || ticks <= 0) {
+    if (onDone) onDone();
+    return inertHandle();
+  }
+  return start({ ticks, interval, onTick, onDone });
+}
+
+/**
+ * Wait `ms`, then run `onDone()`. Same clock, same handle, same pausing.
+ *
+ * This is *time*, not motion, and the difference matters: a toast's dismiss
+ * timeout is how long the reader has to read it. Routing it through animate()
+ * would mean that a reader who asked for reduced motion gets every toast
+ * dismissed in the frame it appeared — the opposite of the accommodation. So
+ * a delay runs whatever the motion preference is, and only the decoration on
+ * top of it (text typing in) goes through animate().
+ */
+export function delay({ ms, onTick = null, onDone = null } = {}) {
+  const interval = tickMs();
+  const ticks = Math.max(1, Math.round(ms / interval));
+  return start({ ticks, interval, onTick, onDone });
 }
 
 /**
@@ -145,10 +191,10 @@ export const clock = {
     schedule();
   },
 
-  /** Advance every live job by `n` steps, ignoring elapsed time. */
+  /** Advance every live, unpaused job by `n` steps, ignoring elapsed time. */
   step(n = 1) {
     for (let k = 0; k < n; k += 1) {
-      for (const job of [...jobs]) step(job);
+      for (const job of [...jobs]) if (!job.paused) step(job);
     }
   },
 
@@ -161,7 +207,7 @@ export const clock = {
    */
   drain(max = 100000) {
     let k = 0;
-    while (k < max && [...jobs].some((job) => Number.isFinite(job.ticks))) {
+    while (k < max && [...jobs].some((job) => Number.isFinite(job.ticks) && !job.paused)) {
       clock.step();
       k += 1;
     }

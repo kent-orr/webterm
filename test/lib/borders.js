@@ -22,20 +22,39 @@ function readShot(buffer) {
   return PNG.sync.read(buffer);
 }
 
-// Document-space geometry of every box matching `selector`, with the span of
-// any .box-title: a title is meant to interrupt the top run (┌─ Title ──┐), so
-// the continuity check skips those columns.
-async function boxGeometry(page, selector = '.box') {
-  return page.$$eval(selector, (els) => els.map((el) => {
+// Document-space geometry of every box matching `selector`, plus the spans of
+// whatever is deliberately drawn into its border row.
+//
+// A title interrupts the top run on purpose (┌─ Title ──┐), and so does a
+// toast's dismiss control. Both are opaque and both are meant to be there, so
+// the continuity check skips their columns. Anything else that breaks a run is
+// a bug. A component marks its own interrupters with data-wt-gap.
+//
+// `fixed: true` reads viewport coordinates instead of document ones, for a
+// fixed-position component screenshotted without fullPage.
+async function boxGeometry(page, selector = '.box', { fixed = false } = {}) {
+  return page.$$eval(selector, (els, isFixed) => els.map((el) => {
     const r = el.getBoundingClientRect();
-    const t = el.querySelector(':scope > .box-title');
-    const tr = t && t.getBoundingClientRect();
+    const dx = isFixed ? 0 : window.scrollX;
+    const dy = isFixed ? 0 : window.scrollY;
+    const gaps = [...el.querySelectorAll(':scope > .box-title, :scope > [data-wt-gap]')]
+      .map((g) => g.getBoundingClientRect())
+      .map((g) => ({ x0: g.x + dx, x1: g.x + g.width + dx }));
     return {
       cls: String(el.className),
-      x: r.x + window.scrollX, y: r.y + window.scrollY, w: r.width, h: r.height,
-      title: tr && { x0: tr.x + window.scrollX, x1: tr.x + tr.width + window.scrollX },
+      x: r.x + dx, y: r.y + dy, w: r.width, h: r.height,
+      gaps,
     };
-  }));
+  }), fixed);
+}
+
+// Whether pixel column x falls inside something the box draws into its border.
+function inGap(box, x, slack) {
+  return (box.gaps || []).some((g) => x >= Math.floor(g.x0) - slack && x < Math.ceil(g.x1) + slack);
+}
+
+function inGapCell(box, x, ch) {
+  return (box.gaps || []).some((g) => x >= g.x0 - ch && x < g.x1);
 }
 
 function range(png, x0, y0, x1, y1) {
@@ -85,7 +104,7 @@ function brokenEdges(png, boxes, cell) {
     for (const [name, ey] of [['top', b.y], ['bottom', b.y + b.h - lh]]) {
       let gaps = 0;
       for (let x = Math.ceil(b.x + ch); x < Math.floor(b.x + b.w - ch); x++) {
-        if (name === 'top' && b.title && x >= Math.floor(b.title.x0) - 1 && x < Math.ceil(b.title.x1) + 1) continue;
+        if (name === 'top' && inGap(b, x, 1)) continue;
         if (range(png, x, Math.ceil(ey), x + 1, Math.floor(ey + lh)) < INK) gaps++;
       }
       if (gaps) bad.push(`${b.cls} ${name}: ${gaps} blank px columns`);
@@ -109,7 +128,7 @@ function brokenAsciiCells(png, boxes, cell) {
     const rows = Math.round(b.h / lh);
     for (let c = 0; c < cols; c++) {
       for (const [name, row] of [['top', 0], ['bottom', rows - 1]]) {
-        if (name === 'top' && b.title && b.x + c * ch >= b.title.x0 - ch && b.x + c * ch < b.title.x1) continue;
+        if (name === 'top' && inGapCell(b, b.x + c * ch, ch)) continue;
         const r = range(png, Math.ceil(b.x + c * ch), Math.ceil(b.y + row * lh), Math.floor(b.x + (c + 1) * ch), Math.floor(b.y + (row + 1) * lh));
         if (r < INK) bad.push(`${b.cls} ${name} cell ${c}`);
       }

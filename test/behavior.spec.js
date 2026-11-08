@@ -20,7 +20,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer } = require('./lib/server');
-const { TOL, cellSize, rects, offGrid, describeRect, screenColumns } = require('./lib/grid');
+const { TOL, cellSize, rects, offGrid, describeRect, screenColumns, hideFixed, showFixed } = require('./lib/grid');
 const borders = require('./lib/borders');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -428,9 +428,9 @@ describe('createBox', () => {
   // The point of createBox: a box the JS assembles has to be indistinguishable
   // from one typed into the page, which means the same pixel sweep.
   test('a built box has four corners and continuous edges', async () => {
-    await page.addStyleTag({ id: 'no-fixed-built', content: '.statusbar-fixed { display: none !important; }' });
+    await hideFixed(page);
     const shot = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
-    await page.evaluate(() => document.getElementById('no-fixed-built')?.remove());
+    await showFixed(page);
     const png = borders.readShot(shot);
     const boxes = await borders.boxGeometry(page, '#built > .box');
     assert.ok(boxes.length > 0);
@@ -1578,6 +1578,485 @@ describe('placeholder area', () => {
   });
 });
 
+/* -------------------------------------------------------- phase 3: toasts */
+
+// §11.1: a toast rendered by the server is adopted, not rebuilt. This runs
+// before any suite that clears the stacks, because adoption is a fact about
+// the page as it loaded.
+describe('toast adoption', () => {
+  test('a toast in the initial HTML is adopted with the same lifecycle', async () => {
+    const result = await page.evaluate(() => {
+      const el = document.querySelector('#toast-static');
+      const instance = window.Webterm.get('toast', el);
+      const out = {
+        mounted: !!instance,
+        hasButton: !!el.querySelector('[data-wt-dismiss="toast"]'),
+        edges: el.querySelectorAll(':scope > .box-edge').length,
+      };
+      return out;
+    });
+    assert.equal(result.mounted, true, 'init did not adopt the server-rendered toast');
+    assert.equal(result.edges, 1);
+  });
+});
+
+describe('toast stack', () => {
+  before(async () => {
+    await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      clock.pause();
+      clock.drain();
+      window.Webterm.clearToasts();
+    });
+  });
+
+  after(async () => {
+    await page.evaluate(() => {
+      window.Webterm.clearToasts();
+      window.Webterm.motion.clock.resume();
+    });
+  });
+
+  test('a stack sits on the grid in every corner', async () => {
+    const problems = await page.evaluate(() => {
+      const out = [];
+      const probe = document.createElement('div');
+      probe.className = 'wt-probe';
+      document.body.append(probe);
+      const r = probe.getBoundingClientRect();
+      const ch = r.width / 100;
+      const lh = r.height / 100;
+      probe.remove();
+      const off = (v, u) => Math.min(((v % u) + u) % u, u - ((v % u) + u) % u);
+      for (const pos of ['tl', 'tr', 'bl', 'br']) {
+        const t = window.Webterm.toast('corner ' + pos, { stack: pos, timeout: 0 });
+        const stack = t.el.closest('.toast-stack');
+        const s = stack.getBoundingClientRect();
+        const b = t.el.getBoundingClientRect();
+        if (off(b.width, ch) >= 0.5) out.push(`${pos}: toast is ${b.width}px wide`);
+        if (off(b.height, lh) >= 0.5) out.push(`${pos}: toast is ${b.height}px tall`);
+        if (off(s.width, ch) >= 0.5) out.push(`${pos}: stack is ${s.width}px wide`);
+        if (off(b.x - s.x, ch) >= 0.5 || off(b.y - s.y, lh) >= 0.5) {
+          out.push(`${pos}: toast at +${(b.x - s.x).toFixed(2)},+${(b.y - s.y).toFixed(2)} in its stack`);
+        }
+      }
+      window.Webterm.clearToasts();
+      return out;
+    });
+    assert.deepEqual(problems, []);
+  });
+
+  test('toasts stack with a one-row gap, every edge on a row', async () => {
+    const result = await page.evaluate(() => {
+      for (let i = 0; i < 3; i += 1) window.Webterm.toast(`message ${i}`, { timeout: 0 });
+      const boxes = [...document.querySelectorAll('.toast-stack-br > .toast')]
+        .map((el) => el.getBoundingClientRect())
+        .sort((a, b) => a.y - b.y);
+      const gaps = [];
+      for (let i = 1; i < boxes.length; i += 1) gaps.push(boxes[i].y - boxes[i - 1].bottom);
+      const out = { count: boxes.length, gaps };
+      window.Webterm.clearToasts();
+      return out;
+    });
+    assert.equal(result.count, 3);
+    for (const gap of result.gaps) {
+      assert.ok(Math.abs(gap - cell.lh) < TOL, `gap of ${gap}px, expected one row (${cell.lh}px)`);
+    }
+  });
+
+  test('a bottom stack clears the fixed status bar', async () => {
+    const result = await page.evaluate(() => {
+      const t = window.Webterm.toast('clearance', { stack: 'br', timeout: 0 });
+      const toast = t.el.getBoundingClientRect();
+      const bar = document.querySelector('.statusbar-fixed').getBoundingClientRect();
+      window.Webterm.clearToasts();
+      return { toastBottom: toast.bottom, barTop: bar.top };
+    });
+    assert.ok(result.toastBottom <= result.barTop,
+      `toast bottom ${result.toastBottom} overlaps the status bar at ${result.barTop}`);
+  });
+
+  test('a toast is as wide as --cells, clamped to the screen', async () => {
+    const result = await page.evaluate(() => {
+      const narrow = window.Webterm.toast('narrow', { cells: 24, timeout: 0 });
+      const wide = window.Webterm.toast('wide', { cells: 10000, timeout: 0 });
+      const out = {
+        narrow: narrow.el.getBoundingClientRect().width,
+        narrowCells: Number(getComputedStyle(narrow.el).getPropertyValue('--cells')),
+        wideCells: Number(getComputedStyle(wide.el).getPropertyValue('--cells')),
+        screen: window.Webterm.cells.screenCols(),
+      };
+      window.Webterm.clearToasts();
+      return out;
+    });
+    assert.equal(result.narrowCells, 24);
+    assert.ok(Math.abs(result.narrow - 24 * cell.ch) < TOL, `narrow toast is ${result.narrow}px`);
+    assert.ok(result.wideCells <= result.screen, `a toast of ${result.wideCells} cells on a ${result.screen}-column screen`);
+  });
+
+  // The same pixel sweep a hand-written box gets. A toast is assembled by
+  // createBox, and the point of createBox is that there is no difference.
+  test('a toast draws four corners and continuous edges', async () => {
+    await page.evaluate(() => {
+      window.Webterm.toast('Replica charlie is behind the primary.', { level: 'warn', timeout: 0 });
+      window.Webterm.motion.clock.drain();
+    });
+    // Only the status bar: the toast itself is the subject here.
+    await hideFixed(page, '.statusbar-fixed');
+    const shot = await page.screenshot({ animations: 'disabled', caret: 'hide' });
+    await showFixed(page);
+    const png = borders.readShot(shot);
+    // A toast is fixed, so its client rect is already viewport-relative and
+    // the screenshot is of the viewport: no scroll offset to add.
+    const boxes = await borders.boxGeometry(page, '.toast', { fixed: true });
+    assert.ok(boxes.length > 0, 'no toast on screen');
+    assert.deepEqual(borders.missingCorners(png, boxes, cell), []);
+    assert.deepEqual(borders.brokenEdges(png, boxes, cell), []);
+    await page.evaluate(() => window.Webterm.clearToasts());
+  });
+});
+
+describe('toast lifecycle', () => {
+  before(async () => {
+    await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      clock.pause();
+      clock.drain();
+      window.Webterm.clearToasts();
+    });
+  });
+
+  after(async () => {
+    await page.evaluate(() => {
+      window.Webterm.clearToasts();
+      window.Webterm.motion.clock.resume();
+    });
+  });
+
+  test('a toast dismisses itself when its time is up', async () => {
+    const result = await page.evaluate(() => {
+      const { clock, tickMs } = window.Webterm.motion;
+      const timeout = tickMs() * 10;
+      const t = window.Webterm.toast('timed', { timeout });
+      const present = () => document.body.contains(t.el);
+      const atStart = present();
+      clock.step(5);
+      const halfway = present();
+      clock.step(20);
+      const after = present();
+      window.Webterm.clearToasts();
+      return { atStart, halfway, after, jobs: clock.finiteJobs };
+    });
+    assert.equal(result.atStart, true);
+    assert.equal(result.halfway, true, 'the toast left before its time was up');
+    assert.equal(result.after, false, 'the toast outstayed its timeout');
+    assert.equal(result.jobs, 0, 'the toast left a job on the clock');
+  });
+
+  // The dismiss timeout is how long the reader has to read it, not decoration.
+  // Routing it through animate() would dismiss every toast in the frame it
+  // appeared for a reader who asked for reduced motion.
+  test('reduced motion does not collapse the timeout', async () => {
+    const result = await page.evaluate(() => {
+      const { clock, tickMs } = window.Webterm.motion;
+      document.documentElement.dataset.wtMotion = 'off';
+      const t = window.Webterm.toast('still readable', { timeout: tickMs() * 10 });
+      const atStart = document.body.contains(t.el);
+      const typed = t.el.querySelector('.toast-rest') === null;
+      clock.step(3);
+      const during = document.body.contains(t.el);
+      clock.step(20);
+      const after = document.body.contains(t.el);
+      delete document.documentElement.dataset.wtMotion;
+      window.Webterm.clearToasts();
+      return { atStart, during, after, typed };
+    });
+    assert.equal(result.atStart, true);
+    assert.equal(result.during, true, 'reduced motion dismissed the toast immediately');
+    assert.equal(result.after, false, 'the toast never dismissed');
+    assert.equal(result.typed, true, 'reduced motion should show the whole message at once');
+  });
+
+  test('timeout 0 keeps a toast until it is dismissed', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const t = window.Webterm.toast('sticky', { timeout: 0 });
+      clock.step(200);
+      const stillThere = document.body.contains(t.el);
+      t.hide();
+      const gone = !document.body.contains(t.el);
+      window.Webterm.clearToasts();
+      return { stillThere, gone };
+    });
+    assert.equal(result.stillThere, true);
+    assert.equal(result.gone, true);
+  });
+
+  test('the close button dismisses it', async () => {
+    const result = await page.evaluate(() => {
+      const t = window.Webterm.toast('closeable', { timeout: 0 });
+      const btn = t.el.querySelector('[data-wt-dismiss="toast"]');
+      btn.click();
+      const out = { hadButton: !!btn, gone: !document.body.contains(t.el) };
+      window.Webterm.clearToasts();
+      return out;
+    });
+    assert.equal(result.hadButton, true, 'a toast needs a way to dismiss it');
+    assert.equal(result.gone, true);
+  });
+
+  test('hovering holds the timer, leaving releases it', async () => {
+    const result = await page.evaluate(() => {
+      const { clock, tickMs } = window.Webterm.motion;
+      const t = window.Webterm.toast('hover me', { timeout: tickMs() * 10 });
+      t.el.dispatchEvent(new MouseEvent('mouseenter'));
+      clock.step(40);
+      const survivedHover = document.body.contains(t.el);
+      t.el.dispatchEvent(new MouseEvent('mouseleave'));
+      clock.step(40);
+      const goneAfter = !document.body.contains(t.el);
+      window.Webterm.clearToasts();
+      return { survivedHover, goneAfter };
+    });
+    assert.equal(result.survivedHover, true, 'the toast timed out while hovered');
+    assert.equal(result.goneAfter, true, 'the timer never resumed');
+  });
+
+  test('the timer erodes the bottom border in whole cells', async () => {
+    const result = await page.evaluate(() => {
+      const { clock, tickMs } = window.Webterm.motion;
+      const t = window.Webterm.toast('counting down', { cells: 24, timeout: tickMs() * 12 });
+      const timer = t.el.querySelector('.toast-timer');
+      const read = () => Number(getComputedStyle(timer).getPropertyValue('--wt-timer-cells'));
+      const widths = [];
+      const seen = [read()];
+      for (let i = 0; i < 12; i += 1) {
+        clock.step();
+        if (!document.body.contains(t.el)) break;
+        seen.push(read());
+        widths.push(timer.getBoundingClientRect().width);
+      }
+      window.Webterm.clearToasts();
+      return { seen, widths, hadTimer: !!timer };
+    });
+    assert.equal(result.hadTimer, true, 'no timer element on the toast');
+    assert.equal(result.seen[0], 0, 'the timer starts with the border whole');
+    for (const [i, v] of result.seen.entries()) {
+      assert.ok(Number.isInteger(v), `tick ${i}: ${v} cells`);
+      if (i > 0) assert.ok(v >= result.seen[i - 1], `tick ${i}: the timer went backwards`);
+    }
+    assert.ok(result.seen.at(-1) > 0, 'the border never eroded');
+    for (const w of result.widths) {
+      assert.ok(offGrid(w, cell.ch) < TOL, `timer is ${w}px, off the grid`);
+    }
+  });
+});
+
+describe('toast typing', () => {
+  before(async () => {
+    await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      clock.pause();
+      clock.drain();
+      window.Webterm.clearToasts();
+    });
+  });
+
+  after(async () => {
+    await page.evaluate(() => {
+      window.Webterm.clearToasts();
+      window.Webterm.motion.clock.resume();
+    });
+  });
+
+  // The message types in, and the box does not move while it does. The trick
+  // is that the unrevealed tail is still laid out — `visibility: hidden`, not
+  // absent — so the glyph sequence and therefore the wrapping never change.
+  test('typing never changes the toast geometry', async () => {
+    const problems = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const t = window.Webterm.toast(
+        'Replica charlie is behind the primary by four hundred and twelve segments.',
+        { cells: 32, timeout: 0 },
+      );
+      const sizes = new Set();
+      const record = () => {
+        const r = t.el.getBoundingClientRect();
+        sizes.add(`${Math.round(r.width * 100)}x${Math.round(r.height * 100)}`);
+      };
+      record();
+      for (let i = 0; i < 60; i += 1) {
+        clock.step();
+        record();
+      }
+      const out = { sizes: [...sizes], text: t.el.querySelector('.toast-body').textContent };
+      window.Webterm.clearToasts();
+      return out;
+    });
+    assert.equal(problems.sizes.length, 1, `the toast changed size while typing: ${problems.sizes.join(' ')}`);
+    assert.match(problems.text, /^Replica charlie is behind the primary by four hundred and twelve segments\.$/);
+  });
+
+  test('the revealed text grows and ends up whole', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const message = 'alpha bravo charlie delta';
+      const t = window.Webterm.toast(message, { cells: 32, timeout: 0 });
+      const shown = () => t.el.querySelector('.toast-shown')?.textContent ?? t.el.querySelector('.toast-body').textContent;
+      const lengths = [shown().length];
+      for (let i = 0; i < 40; i += 1) {
+        clock.step();
+        lengths.push(shown().length);
+      }
+      const out = { lengths, final: shown(), message, rest: t.el.querySelector('.toast-rest') };
+      window.Webterm.clearToasts();
+      return { ...out, rest: out.rest === null };
+    });
+    for (let i = 1; i < result.lengths.length; i += 1) {
+      assert.ok(result.lengths[i] >= result.lengths[i - 1], `the reveal went backwards at ${i}`);
+    }
+    assert.equal(result.final, result.message);
+    assert.equal(result.rest, true, 'the hidden tail outlived the reveal');
+  });
+});
+
+describe('toast queue and events', () => {
+  before(async () => {
+    await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      clock.pause();
+      clock.drain();
+      window.Webterm.clearToasts();
+    });
+  });
+
+  after(async () => {
+    await page.evaluate(() => {
+      window.Webterm.clearToasts();
+      window.Webterm.motion.clock.resume();
+    });
+  });
+
+  test('no more than toastMax are visible, and the rest queue', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      window.Webterm.config.toastMax = 3;
+      const made = [];
+      for (let i = 0; i < 7; i += 1) made.push(window.Webterm.toast(`queued ${i}`, { timeout: 60 * 4 }));
+      const visible = () => document.querySelectorAll('.toast-stack-br > .toast').length;
+      const atOnce = visible();
+      clock.step(10);
+      const afterSome = visible();
+      clock.step(200);
+      const atEnd = visible();
+      const out = { atOnce, afterSome, atEnd, queued: window.Webterm.toastQueue() };
+      window.Webterm.clearToasts();
+      window.Webterm.config.toastMax = 4;
+      return out;
+    });
+    assert.equal(result.atOnce, 3, `${result.atOnce} toasts visible with toastMax 3`);
+    assert.ok(result.afterSome <= 3);
+    assert.equal(result.atEnd, 0, 'the queue never drained');
+    assert.equal(result.queued, 0);
+  });
+
+  test('a repeated message counts instead of stacking', async () => {
+    const result = await page.evaluate(() => {
+      const a = window.Webterm.toast('disk is full', { timeout: 0 });
+      window.Webterm.toast('disk is full', { timeout: 0 });
+      window.Webterm.toast('disk is full', { timeout: 0 });
+      const count = document.querySelectorAll('.toast-stack-br > .toast').length;
+      const title = a.el.querySelector('.box-title').textContent;
+      window.Webterm.clearToasts();
+      return { count, title };
+    });
+    assert.equal(result.count, 1, 'a repeated message made a new toast');
+    assert.match(result.title, /×3/, `title reads ${JSON.stringify(result.title)}`);
+  });
+
+  test('a different message does not merge', async () => {
+    const result = await page.evaluate(() => {
+      window.Webterm.toast('disk is full', { timeout: 0 });
+      window.Webterm.toast('disk is fine', { timeout: 0 });
+      const count = document.querySelectorAll('.toast-stack-br > .toast').length;
+      window.Webterm.clearToasts();
+      return count;
+    });
+    assert.equal(result, 2);
+  });
+
+  test('the four lifecycle events fire in order', async () => {
+    const seen = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const log = [];
+      const types = ['wt:toast:show', 'wt:toast:shown', 'wt:toast:hide', 'wt:toast:hidden'];
+      const handler = (e) => log.push(e.type);
+      for (const t of types) document.addEventListener(t, handler);
+      const t = window.Webterm.toast('eventful', { timeout: 60 * 3 });
+      clock.step(60);
+      for (const ty of types) document.removeEventListener(ty, handler);
+      window.Webterm.clearToasts();
+      return log;
+    });
+    assert.deepEqual(seen, ['wt:toast:show', 'wt:toast:shown', 'wt:toast:hide', 'wt:toast:hidden']);
+  });
+
+  test('preventing wt:toast:show stops it appearing', async () => {
+    const result = await page.evaluate(() => {
+      const block = (e) => e.preventDefault();
+      document.addEventListener('wt:toast:show', block);
+      const t = window.Webterm.toast('never seen', { timeout: 0 });
+      document.removeEventListener('wt:toast:show', block);
+      const out = {
+        visible: document.querySelectorAll('.toast-stack-br > .toast').length,
+        returned: t === null,
+      };
+      window.Webterm.clearToasts();
+      return out;
+    });
+    assert.equal(result.visible, 0, 'a prevented toast appeared anyway');
+    assert.equal(result.returned, true, 'toast() should report that it did not show');
+  });
+
+  test('preventing wt:toast:hide keeps it', async () => {
+    const result = await page.evaluate(() => {
+      const block = (e) => e.preventDefault();
+      const t = window.Webterm.toast('stubborn', { timeout: 0 });
+      document.addEventListener('wt:toast:hide', block);
+      t.hide();
+      const held = document.body.contains(t.el);
+      document.removeEventListener('wt:toast:hide', block);
+      t.hide();
+      const gone = !document.body.contains(t.el);
+      window.Webterm.clearToasts();
+      return { held, gone };
+    });
+    assert.equal(result.held, true);
+    assert.equal(result.gone, true);
+  });
+
+  test('a stack is a live region, and an error announces itself', async () => {
+    const result = await page.evaluate(() => {
+      const info = window.Webterm.toast('fyi', { level: 'info', timeout: 0 });
+      const err = window.Webterm.toast('it broke', { level: 'error', timeout: 0 });
+      const stack = info.el.closest('.toast-stack');
+      const out = {
+        live: stack.getAttribute('aria-live'),
+        role: stack.getAttribute('role'),
+        infoRole: info.el.getAttribute('role'),
+        errRole: err.el.getAttribute('role'),
+        errClass: err.el.className,
+      };
+      window.Webterm.clearToasts();
+      return out;
+    });
+    assert.equal(result.live, 'polite');
+    assert.equal(result.role, 'status');
+    assert.equal(result.errRole, 'alert', 'an error toast must interrupt');
+    assert.match(result.errClass, /toast-error/);
+  });
+});
+
 describe('no-script', () => {
   // §11.1: the CSS is a whole framework on its own. The static page has to
   // render and stay on the grid with the module never loaded.
@@ -1591,7 +2070,7 @@ describe('no-script', () => {
     await quiet.goto(`${server.origin}/test/behavior.html`);
     await quiet.waitForTimeout(200);
     const c = await cellSize(quiet);
-    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area');
+    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area, .toast');
     assert.ok(found.length > 0, 'nothing rendered without script');
     const bad = found.filter((r) => offGrid(r.w, c.ch) >= TOL || offGrid(r.h, c.lh) >= TOL);
     assert.deepEqual(bad.map((r) => `${describeRect(r)} ${r.w}x${r.h}`), []);

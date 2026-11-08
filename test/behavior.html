@@ -199,6 +199,28 @@ echo      replica  0.12  ok</pre>
     <button class="btn" id="ph-area-hold">hold</button>
   </p>
 
+  <h2 class="mt-2">Toasts</h2>
+  <p>A box in a stack pinned to a corner. The message types in without the box
+  moving, and the bottom border doubles as the countdown: it erodes a cell at a
+  time until it is gone and the toast goes with it.</p>
+  <p class="mt-1">
+    <button class="btn" id="toast-info">info</button>
+    <button class="btn btn-ok" id="toast-ok">ok</button>
+    <button class="btn" id="toast-warn">warn</button>
+    <button class="btn btn-error" id="toast-error">error</button>
+    <button class="btn" id="toast-sticky">sticky</button>
+    <button class="btn" id="toast-flood">flood</button>
+    <button class="btn" id="toast-clear">clear</button>
+  </p>
+
+  <div class="toast-stack toast-stack-tl" role="status" aria-live="polite">
+    <div class="box toast toast-info" id="toast-static" data-wt-timeout="0">
+      <span class="box-edge"></span>
+      <span class="box-title">info</span>
+      <p class="toast-body">Written into the page, adopted by the module.</p>
+    </div>
+  </div>
+
   <h3 class="mt-2">Scroll lock</h3>
   <p>Locking page scroll must not change the column count: without a stable
   scrollbar gutter the screen rounds up a column and the whole page reflows
@@ -304,6 +326,27 @@ $('#ph-resolve').addEventListener('click', () => { for (const p of phDemos) p.re
 $('#ph-fail').addEventListener('click', () => { for (const p of phDemos) p.fail(); });
 $('#ph-area-run').addEventListener('click', () => phArea.start());
 $('#ph-area-hold').addEventListener('click', () => phArea.hold());
+
+const MESSAGES = {
+  info: 'Snapshot complete: 412 segments, 1.9s.',
+  ok: 'Replica charlie caught up with the primary.',
+  warn: 'Replica charlie is behind the primary by 412 segments.',
+  error: 'Lost the connection to host delta. Retrying in 30s.',
+};
+for (const level of ['info', 'ok', 'warn', 'error']) {
+  $('#toast-' + level).addEventListener('click', () => {
+    Webterm.toast(MESSAGES[level], { level });
+  });
+}
+$('#toast-sticky').addEventListener('click', () => {
+  Webterm.toast('This one stays until you dismiss it.', { level: 'info', timeout: 0 });
+});
+$('#toast-flood').addEventListener('click', () => {
+  for (let i = 0; i < 7; i += 1) {
+    Webterm.toast('Queued message number ' + (i + 1) + '.', { level: 'info' });
+  }
+});
+$('#toast-clear').addEventListener('click', () => Webterm.clearToasts());
 
 $('#lock').addEventListener('click', () => {
   Webterm.lockScroll();

@@ -19,7 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer } = require('./lib/server');
-const { TOL, cellSize, rects, offGrid, describeRect } = require('./lib/grid');
+const { TOL, cellSize, rects, offGrid, describeRect, hideFixed, showFixed } = require('./lib/grid');
 const borders = require('./lib/borders');
 
 const SRC = path.resolve(__dirname, '..', 'src');
@@ -165,14 +165,14 @@ describe('box borders', () => {
     // A fullPage screenshot keeps fixed elements at their viewport position,
     // so the pinned status bar would paint over whatever border happens to be
     // behind it. Its own geometry is checked in the cell grid suite.
-    await page.addStyleTag({ id: 'no-fixed', content: '.statusbar-fixed { display: none !important; }' });
+    await hideFixed(page);
     const shot = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
     png = borders.readShot(shot);
     boxes = await borders.boxGeometry(page, '.box');
   });
 
   after(async () => {
-    await page.evaluate(() => document.getElementById('no-fixed')?.remove());
+    await showFixed(page);
   });
 
   test('every box has all four corner glyphs', () => {

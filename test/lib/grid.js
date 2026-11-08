@@ -57,4 +57,34 @@ async function screenColumns(page, cell) {
   return Math.round(screen.w / cell.ch);
 }
 
-module.exports = { TOL, cellSize, rects, offGrid, describeRect, screenColumns };
+/*
+ * Hide fixed elements for a screenshot, and put them back.
+ *
+ * A fullPage screenshot keeps a fixed element at its viewport position, so a
+ * pinned status bar paints over whatever border happens to be behind it. It
+ * has to go for the duration.
+ *
+ * Not page.addStyleTag({ id }): that option does not exist, so the tag it
+ * creates has no id and the usual getElementById(...).remove() silently fails
+ * — leaving every later test looking at a page with no status bar. Injecting
+ * the element here means the handle is real.
+ */
+const HIDE_ID = 'wt-spec-hide-fixed';
+
+async function hideFixed(page, selector = '.statusbar-fixed, .toast-stack') {
+  await page.evaluate(([id, sel]) => {
+    document.getElementById(id)?.remove();
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = `${sel} { display: none !important; }`;
+    document.head.append(style);
+  }, [HIDE_ID, selector]);
+}
+
+async function showFixed(page) {
+  await page.evaluate((id) => document.getElementById(id)?.remove(), HIDE_ID);
+}
+
+module.exports = {
+  TOL, cellSize, rects, offGrid, describeRect, screenColumns, hideFixed, showFixed,
+};
