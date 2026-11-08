@@ -372,6 +372,12 @@ matters still holds (N cells is N equal whole-px columns, regular and bold, no
 drift with N); the em-advance prediction the test checks is not what the
 browser uses. See PLAN §8.
 
+`npm test` runs every spec in one process — 604 tests, 504 pass, the same 100
+fail. In roughly one run in three, three of the browser assertions come back
+cancelled rather than passed; re-running clears it, and running a spec on its
+own never shows it. Treat a cancelled assertion as "run it again", not as a
+result.
+
 ## Limitations
 
 - **Calibration is Chromium-only.** Firefox and Safari round font metrics
