@@ -9,3 +9,6 @@ test-results/
 .Ruserdata
 .Renviron
 renv/
+
+# Claude Code worktrees live here; they are checkouts, not source.
+.claude/worktrees/
