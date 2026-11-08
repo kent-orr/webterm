@@ -171,6 +171,27 @@ export function delay({ ms, onTick = null, onDone = null } = {}) {
 }
 
 /**
+ * How many of `n` steps fall on each of `ticks` ticks, as an array of counts.
+ *
+ * The tick count comes from a duration, so the number of *things* being
+ * stepped — cells of a resolving placeholder (§11.5), rows of an opening
+ * collapse, cells of a sliding drawer (§11.10) — changes how many move per
+ * tick rather than how long the whole thing takes. A 60-cell value settling
+ * one cell per tick would take half a minute; a 40-cell drawer sliding one
+ * cell per tick would take two and a half seconds to open.
+ *
+ * It lives here rather than in the component that needed it first because
+ * three of them need it, and a copy in each is three chances to get the
+ * rounding different.
+ */
+export function stepPlan(n, ticks) {
+  const plan = new Array(Math.max(0, ticks)).fill(0);
+  if (ticks <= 0 || n <= 0) return plan;
+  for (let i = 0; i < n; i += 1) plan[Math.floor((i * ticks) / n)] += 1;
+  return plan;
+}
+
+/**
  * The clock itself. A page never needs this; a spec does, and so does any
  * caller that wants animation to stop while a dialog is open.
  */

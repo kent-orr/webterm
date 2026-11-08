@@ -603,3 +603,68 @@ dialog.modal > .backdrop {
 .modal-actions-right {
   justify-content: flex-end;
 }
+
+/*
+ * ------------------------------------------------------------------ collapse
+ *
+ * PLAN §11.10. A disclosure is a <details>, which is the one component in the
+ * framework whose script-free form is not merely visible but working: the
+ * browser owns the trigger, the keyboard, the state and the accessible name.
+ * The behavior layer only adds the animation.
+ *
+ * The marker is a glyph, so it obeys the same measured range as the spinner
+ * frames — ASCII and U+2500-259F (glyphs.css). `▸`/`▾` are U+25B8/U+25BE, in
+ * Geometric Shapes, which is outside it and double-width in two of the three
+ * bundled fonts. So the default pair is ASCII, and a page that ships a font
+ * where something better is exactly one cell redeclares these two:
+ *
+ *   :root { --wt-collapse-closed: "▸"; --wt-collapse-open: "▾"; }
+ */
+:root {
+  --wt-collapse-closed: "+";
+  --wt-collapse-open: "-";
+}
+
+.collapse > summary {
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+
+/* The native marker is a sub-cell triangle and cannot be sized in cells. */
+.collapse > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Two cells, so the body lines up with the summary text in both states. */
+.collapse > summary::before {
+  content: var(--wt-collapse-closed) " ";
+}
+
+.collapse[open] > summary::before {
+  content: var(--wt-collapse-open) " ";
+}
+
+.collapse > summary:hover {
+  text-decoration: underline;
+}
+
+.collapse > summary:focus-visible {
+  background: var(--fg);
+  color: var(--bg);
+  outline: none;
+}
+
+/*
+ * The clamp, added by the behavior layer for the length of an animation and
+ * removed after it, so an open body is its natural height and not a height
+ * this file has an opinion about.
+ *
+ * `--rows` is written on the <details>, not here: the JS sets one custom
+ * property on the element it was handed, and the clamp inherits it (PLAN
+ * §11.2 rule 4 — a unitless custom property, never a px).
+ */
+.collapse-stepping > .collapse-body {
+  height: calc(var(--rows, 0) * 1lh);
+  overflow: hidden;
+}

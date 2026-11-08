@@ -2352,6 +2352,363 @@ describe('modal', () => {
   });
 });
 
+// ------------------------------------------------------------------ collapse
+//
+// PLAN §11.10. A disclosure is <details>, which makes the static form a
+// *working* widget rather than a visible one, and the only thing the module
+// adds is the animation: the body's height steps in whole rows on the tick.
+//
+// The vertical axis of §11.9's "no layout shift". A pixel-tweened height is
+// what every other framework does here, and it puts the page below the
+// component mid-row on all but a handful of frames.
+describe('collapse', () => {
+  const FONTS = ['font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
+
+  // The marker is a glyph on the grid, so it is held to the same measured
+  // range as the spinner frames: ASCII and U+2500-259F (glyphs.css). That
+  // excludes the disclosure triangle every example reaches for.
+  test('the marker tokens use only ascii and U+2500-259F', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'src', 'grid', 'components.css'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    const found = [...css.matchAll(/--wt-collapse-(closed|open):\s*"((?:[^"\\]|\\.)*)"/g)];
+    assert.equal(found.length, 2, 'components.css declares both collapse markers');
+    const bad = [];
+    for (const m of found) {
+      for (const c of [...m[2]]) {
+        const cp = c.codePointAt(0);
+        if (!((cp >= 0x20 && cp < 0x7f) || (cp >= 0x2500 && cp <= 0x259f))) {
+          bad.push(`${m[1]}: ${c} U+${cp.toString(16).toUpperCase()}`);
+        }
+      }
+    }
+    assert.deepEqual(bad, []);
+  });
+
+  for (const font of FONTS) {
+    test(`both markers are exactly one cell in ${font}`, async () => {
+      const result = await page.evaluate(async (f) => {
+        const previous = document.documentElement.className;
+        document.documentElement.className = f;
+        await document.fonts.ready;
+        const stick = document.createElement('div');
+        stick.className = 'wt-probe';
+        document.body.append(stick);
+        const ch = stick.getBoundingClientRect().width / 100;
+        stick.remove();
+        const measure = document.createElement('span');
+        measure.className = 'pre';
+        measure.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+        document.body.append(measure);
+        const root = getComputedStyle(document.documentElement);
+        const bad = [];
+        for (const name of ['closed', 'open']) {
+          const glyph = root.getPropertyValue(`--wt-collapse-${name}`).trim().replace(/^"|"$/g, '');
+          if (!glyph) { bad.push(`${name}: empty`); continue; }
+          measure.textContent = glyph.repeat(20);
+          const w = measure.getBoundingClientRect().width / 20;
+          if (Math.abs(w - ch) > 0.02) bad.push(`${name}: ${glyph}=${w.toFixed(3)} (cell ${ch.toFixed(3)})`);
+        }
+        measure.remove();
+        document.documentElement.className = previous;
+        await document.fonts.ready;
+        return bad;
+      }, font);
+      assert.deepEqual(result, []);
+    });
+  }
+
+  test('a closed collapse is its summary and nothing else', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#col-disk');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      if (c.open) c.hide();
+      window.Webterm.motion.clock.drain();
+      const box = el.getBoundingClientRect();
+      const summary = el.querySelector(':scope > summary').getBoundingClientRect();
+      return { open: el.open, h: box.height, summaryH: summary.height };
+    });
+    assert.equal(r.open, false);
+    assert.ok(Math.abs(r.h - r.summaryH) < TOL, `closed collapse is ${r.h}px for a ${r.summaryH}px summary`);
+    assert.ok(offGrid(r.summaryH, cell.lh) < TOL, `summary is ${r.summaryH}px tall`);
+  });
+
+  // The whole point. Every sampled frame is a whole number of rows, the body
+  // only ever grows, and it lands on exactly the height it would have had.
+  test('the body steps in whole rows, never shrinking, to its natural height', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#col-disk');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      if (c.open) { c.hide(); clock.drain(); }
+      const body = el.querySelector(':scope > .collapse-body');
+
+      clock.pause();
+      c.show();
+      const heights = [body.getBoundingClientRect().height];
+      let guard = 0;
+      while (c.animating && guard < 200) {
+        clock.step();
+        heights.push(body.getBoundingClientRect().height);
+        guard += 1;
+      }
+      const natural = body.getBoundingClientRect().height;
+      clock.resume();
+      return { heights, natural, steps: guard, rows: c.rows, open: el.open };
+    });
+    assert.ok(r.steps > 1, `the body resolved in ${r.steps} steps, so nothing was animated`);
+    assert.ok(r.rows > 1, `the fixture body is only ${r.rows} rows`);
+    const off = r.heights.filter((h) => offGrid(h, cell.lh) >= TOL);
+    assert.deepEqual(off.map((h) => `${h}px (${(h / cell.lh).toFixed(3)} rows)`), [], 'a frame landed mid-row');
+    for (let i = 1; i < r.heights.length; i += 1) {
+      assert.ok(r.heights[i] >= r.heights[i - 1], `the body shrank at step ${i}: ${r.heights.join(', ')}`);
+    }
+    assert.equal(r.heights[0], 0, 'the first frame was not a closed body');
+    assert.ok(Math.abs(r.natural - r.rows * cell.lh) < TOL, `settled at ${r.natural}px for ${r.rows} rows`);
+    assert.equal(r.open, true);
+  });
+
+  // Sampled on the <details> and not on the body, which is deliberate: a
+  // closed <details> is layout-skipped in Chromium, so a descendant's
+  // getBoundingClientRect() keeps reporting the size it had when it was last
+  // laid out. The body reads 80px with `open` already false. The element's own
+  // box is what the page actually sees, and it does collapse to its summary.
+  test('closing steps back down and clears open only at the end', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#col-disk');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      if (!c.open) { c.show(); clock.drain(); }
+      const summaryH = el.querySelector(':scope > summary').getBoundingClientRect().height;
+
+      clock.pause();
+      c.hide();
+      const heights = [];
+      const openWhile = [];
+      let guard = 0;
+      while (c.animating && guard < 200) {
+        clock.step();
+        heights.push(el.getBoundingClientRect().height);
+        openWhile.push(el.open);
+        guard += 1;
+      }
+      clock.resume();
+      return {
+        heights,
+        openWhile,
+        summaryH,
+        open: el.open,
+        cls: el.className,
+        rowsLeft: el.style.getPropertyValue('--rows'),
+      };
+    });
+    assert.ok(r.heights.length > 1, 'the close did not animate');
+    const off = r.heights.filter((h) => offGrid(h, cell.lh) >= TOL);
+    assert.deepEqual(off.map((h) => `${h}px`), [], 'a closing frame landed mid-row');
+    for (let i = 1; i < r.heights.length; i += 1) {
+      assert.ok(r.heights[i] <= r.heights[i - 1], `the collapse grew while closing: ${r.heights.join(', ')}`);
+    }
+    assert.deepEqual(r.openWhile.slice(0, -1).filter((o) => o !== true), [], 'open was cleared before the animation finished');
+    assert.equal(r.open, false, 'the details stayed open');
+    assert.ok(Math.abs(r.heights.at(-1) - r.summaryH) < TOL, `closed at ${r.heights.at(-1)}px for a ${r.summaryH}px summary`);
+    assert.ok(!/stepping/.test(r.cls), `stepping class left behind: ${r.cls}`);
+    assert.equal(r.rowsLeft, '', `--rows left behind: ${r.rowsLeft}`);
+  });
+
+  // Rows move; columns must not. A collapse inside the screen changes no
+  // width, and nothing it does adds or removes a scrollbar.
+  test('nothing moves horizontally while a collapse animates', async () => {
+    const before = await screenColumns(page, cell);
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#col-disk');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      if (c.open) { c.hide(); clock.drain(); }
+      clock.pause();
+      c.show();
+      const widths = [el.getBoundingClientRect().width];
+      let guard = 0;
+      while (c.animating && guard < 200) {
+        clock.step();
+        widths.push(el.getBoundingClientRect().width);
+        guard += 1;
+      }
+      clock.resume();
+      c.hide();
+      clock.drain();
+      return [...new Set(widths)];
+    });
+    assert.equal(r.length, 1, `the collapse took ${r.length} widths while animating: ${r.join(', ')}`);
+    assert.equal(await screenColumns(page, cell), before, 'the column count moved');
+  });
+
+  // §11.2 rule 6: the end state now, and no job left on the clock.
+  test('motion off opens and closes on frame 0 and schedules nothing', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#col-disk');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      if (c.open) { c.hide(); clock.drain(); }
+      const body = el.querySelector(':scope > .collapse-body');
+      document.documentElement.dataset.wtMotion = 'off';
+      c.show();
+      const opened = { h: body.getBoundingClientRect().height, jobs: clock.finiteJobs, animating: c.animating };
+      c.hide();
+      const closed = { open: el.open, jobs: clock.finiteJobs, animating: c.animating };
+      delete document.documentElement.dataset.wtMotion;
+      return { opened, closed, rows: c.rows };
+    });
+    assert.ok(r.opened.h > 0, 'the body stayed closed with motion off');
+    assert.equal(r.opened.animating, false, 'an animation ran with motion off');
+    assert.equal(r.opened.jobs, 0, `${r.opened.jobs} jobs scheduled with motion off`);
+    assert.equal(r.closed.open, false);
+    assert.equal(r.closed.jobs, 0);
+  });
+
+  test('the four lifecycle events fire in order and show is cancelable', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#col-disk');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      if (c.open) { c.hide(); clock.drain(); }
+      const log = [];
+      const types = ['wt:collapse:show', 'wt:collapse:shown', 'wt:collapse:hide', 'wt:collapse:hidden'];
+      const handler = (e) => log.push(e.type);
+      for (const t of types) el.addEventListener(t, handler);
+      c.show();
+      clock.drain();
+      c.hide();
+      clock.drain();
+      for (const t of types) el.removeEventListener(t, handler);
+
+      const block = (e) => e.preventDefault();
+      el.addEventListener('wt:collapse:show', block);
+      c.show();
+      clock.drain();
+      const blocked = el.open;
+      el.removeEventListener('wt:collapse:show', block);
+      if (el.open) { c.hide(); clock.drain(); }
+      return { log, blocked };
+    });
+    assert.deepEqual(r.log, ['wt:collapse:show', 'wt:collapse:shown', 'wt:collapse:hide', 'wt:collapse:hidden']);
+    assert.equal(r.blocked, false, 'a prevented show opened the details anyway');
+  });
+
+  // The native summary click has to be intercepted, or the browser toggles
+  // `open` itself and the animation never runs.
+  test('a click on the summary animates instead of snapping open', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#col-disk');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      if (c.open) { c.hide(); clock.drain(); }
+      clock.pause();
+      el.querySelector(':scope > summary').click();
+      const animating = c.animating;
+      const mid = el.querySelector(':scope > .collapse-body').getBoundingClientRect().height;
+      clock.drain();
+      clock.resume();
+      const end = el.querySelector(':scope > .collapse-body').getBoundingClientRect().height;
+      c.hide();
+      clock.drain();
+      return { animating, mid, end };
+    });
+    assert.equal(r.animating, true, 'the summary click did not animate');
+    assert.equal(r.mid, 0, 'the body was fully open on the first frame');
+    assert.ok(r.end > 0, 'the body never opened');
+  });
+
+  test('the data API toggles a collapse by target', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#col-disk');
+      const trigger = document.querySelector('[data-wt-toggle="collapse"][data-wt-target="#col-disk"]');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      if (c.open) { c.hide(); clock.drain(); }
+      trigger.click();
+      clock.drain();
+      const opened = el.open;
+      trigger.click();
+      clock.drain();
+      return { opened, closed: el.open };
+    });
+    assert.equal(r.opened, true, 'the data API did not open the collapse');
+    assert.equal(r.closed, false, 'the data API did not close it again');
+  });
+
+  // <details name="…"> is an exclusive accordion in the browser: opening one
+  // closes its sibling with no click to intercept and no hide() call. The
+  // instance has to notice, or it keeps a stepping clamp on a closed body.
+  test('a sibling the browser closes leaves no stepping state behind', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const a = document.querySelector('#col-acc-a');
+      const b = document.querySelector('#col-acc-b');
+      const ca = window.Webterm.getOrCreate('collapse', a);
+      const cb = window.Webterm.getOrCreate('collapse', b);
+      ca.show();
+      clock.drain();
+      cb.show();
+      clock.drain();
+      return {
+        aOpen: a.open,
+        bOpen: b.open,
+        aClass: a.className,
+        aRows: a.style.getPropertyValue('--rows'),
+        aAnimating: ca.animating,
+        jobs: clock.jobs,
+      };
+    });
+    assert.equal(r.bOpen, true);
+    assert.equal(r.aOpen, false, 'the fixtures are not an exclusive accordion');
+    assert.ok(!/stepping/.test(r.aClass), `stepping class left on the closed sibling: ${r.aClass}`);
+    assert.equal(r.aRows, '', `--rows left on the closed sibling: ${r.aRows}`);
+    assert.equal(r.aAnimating, false);
+  });
+
+  test('a static open collapse is adopted rather than rebuilt', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#col-open');
+      const c = window.Webterm.getOrCreate('collapse', el);
+      const body = el.querySelector(':scope > .collapse-body');
+      return {
+        open: el.open,
+        animating: c.animating,
+        h: body.getBoundingClientRect().height,
+        stepping: el.className,
+      };
+    });
+    assert.equal(r.open, true, 'the fixture is not open');
+    assert.equal(r.animating, false, 'mounting a static collapse animated it');
+    assert.ok(r.h > 0, 'mounting a static collapse closed it');
+    assert.ok(!/stepping/.test(r.stepping));
+  });
+
+  // §11.1, and better than §11.1 asks for: with no module at all a details
+  // still opens. The degradation is a working widget, not a visible one.
+  test('it still opens with scripts disabled', async () => {
+    const ctx = await browser.newContext({
+      deviceScaleFactor: 1,
+      viewport: { width: 1280, height: 1024 },
+      javaScriptEnabled: false,
+    });
+    const quiet = await ctx.newPage();
+    await quiet.goto(`${server.origin}/test/behavior.html`);
+    await quiet.waitForTimeout(200);
+    const c = await cellSize(quiet);
+    await quiet.click('#col-disk > summary');
+    const r = await quiet.evaluate(() => {
+      const el = document.querySelector('#col-disk');
+      const body = el.querySelector(':scope > .collapse-body');
+      return { open: el.open, h: el.getBoundingClientRect().height, bodyH: body.getBoundingClientRect().height };
+    });
+    assert.equal(r.open, true, 'a details did not open without the module');
+    assert.ok(r.bodyH > 0, 'the body stayed collapsed without the module');
+    assert.ok(offGrid(r.h, c.lh) < TOL, `an opened collapse is ${r.h}px tall`);
+    assert.ok(offGrid(r.bodyH, c.lh) < TOL, `its body is ${r.bodyH}px tall`);
+    await ctx.close();
+  });
+});
+
 describe('no-script', () => {
   // §11.1: the CSS is a whole framework on its own. The static page has to
   // render and stay on the grid with the module never loaded.
@@ -2365,7 +2722,7 @@ describe('no-script', () => {
     await quiet.goto(`${server.origin}/test/behavior.html`);
     await quiet.waitForTimeout(200);
     const c = await cellSize(quiet);
-    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area, .toast');
+    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area, .toast, .collapse, .collapse-body');
     assert.ok(found.length > 0, 'nothing rendered without script');
     const bad = found.filter((r) => offGrid(r.w, c.ch) >= TOL || offGrid(r.h, c.lh) >= TOL);
     assert.deepEqual(bad.map((r) => `${describeRect(r)} ${r.w}x${r.h}`), []);

@@ -81,6 +81,11 @@ export function roundCells(px) {
   return Math.max(0, Math.round(toCells(px)));
 }
 
+/** A pixel height as a whole number of rows, rounded to the nearest. */
+export function roundRows(px) {
+  return Math.max(0, Math.round(toRows(px)));
+}
+
 /**
  * The column count of the screen container `el` sits in, or of the first
  * .screen on the page, or of the viewport if the page has none. This is the

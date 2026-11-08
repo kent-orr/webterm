@@ -25,7 +25,7 @@
  * that may differ from the one the element was authored with — and fail().
  */
 
-import { animate, motionEnabled, tickMs } from './lib/motion.js';
+import { animate, motionEnabled, tickMs, stepPlan } from './lib/motion.js';
 import { emit } from './lib/events.js';
 
 /*
@@ -94,21 +94,6 @@ function settleOrder(n, order) {
     default:
       return indices;
   }
-}
-
-/*
- * How many cells settle on each tick. The total number of ticks comes from the
- * duration rather than the string length, so a 60-character value resolves in
- * the same time as a 4-character one — several cells per tick instead of one.
- * A long string that settled one cell per tick would take half a minute.
- */
-function settleSchedule(n, ticks) {
-  const plan = new Array(ticks).fill(0);
-  if (ticks <= 0) return plan;
-  for (let i = 0; i < n; i += 1) {
-    plan[Math.floor((i * ticks) / n)] += 1;
-  }
-  return plan;
 }
 
 export class Placeholder {
@@ -346,7 +331,7 @@ export class Placeholder {
     const order = settleOrder(total, this.order).filter((i) => !this.settledSet.has(i));
     const duration = Number(this.el.getAttribute('data-wt-duration')) || DEFAULT_DURATION;
     const ticks = Math.max(this.cycle + 1, Math.round(duration / tickMs()));
-    const plan = settle ? settleSchedule(order.length, ticks - this.cycle) : [];
+    const plan = settle ? stepPlan(order.length, ticks - this.cycle) : [];
     let cursor = 0;
 
     this.handle = animate({

@@ -279,6 +279,56 @@ echo      replica  0.12  ok</pre>
     <span>columns: <span id="m-lockcols">—</span></span>
   </p>
 
+  <h2 class="mt-2">Collapse</h2>
+  <p>A disclosure is a <code>&lt;details&gt;</code>, so with no script it does
+  not merely render — it works. The module adds the animation: the body’s height
+  steps a whole row at a time on the tick, so the page below it never sits
+  mid-row.</p>
+
+  <details class="collapse mt-1" id="col-disk">
+    <summary>disk</summary>
+    <div class="collapse-body">
+      <dl class="kv">
+        <dt>/</dt><dd>14G of 40G</dd>
+        <dt>/var</dt><dd>3.1G of 8.0G</dd>
+        <dt>/tmp</dt><dd>112M of 2.0G</dd>
+        <dt>inodes</dt><dd>218k of 2.4M</dd>
+      </dl>
+    </div>
+  </details>
+
+  <p class="mt-1">
+    <button class="btn" data-wt-toggle="collapse" data-wt-target="#col-disk">toggle disk</button>
+  </p>
+
+  <h3 class="mt-2">Accordion</h3>
+  <p>A shared <code>name</code> makes the browser close the other one, with no
+  click for the module to intercept — so it watches <code>toggle</code> as well.</p>
+
+  <details class="collapse mt-1" id="col-acc-a" name="col-acc">
+    <summary>primary</summary>
+    <div class="collapse-body">
+      <p>alpha — 0 segments behind, 19 days up.</p>
+      <p>Accepting writes.</p>
+    </div>
+  </details>
+  <details class="collapse" id="col-acc-b" name="col-acc">
+    <summary>replica</summary>
+    <div class="collapse-body">
+      <p>charlie — 412 segments behind.</p>
+      <p>Degraded for nineteen minutes.</p>
+    </div>
+  </details>
+
+  <h3 class="mt-2">Open in the markup</h3>
+  <p>Adopted on init, not rebuilt: it stays open and nothing animates.</p>
+  <details class="collapse mt-1" id="col-open" open>
+    <summary>uptime</summary>
+    <div class="collapse-body">
+      <p>19 days, 4 hours, 11 minutes.</p>
+    </div>
+  </details>
+
   <div class="statusbar statusbar-fixed">
     <span>webterm</span>
     <span class="spacer"></span>

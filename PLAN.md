@@ -461,9 +461,9 @@ webterm's §2 rules make those *harder* and more interesting, because a toast
 that slides in on a sub-cell offset, or a skeleton that resizes when the real
 text arrives, breaks the one property the framework exists to hold.
 
-Round one is **toasts, loading, placeholders and modals**. Collapse, dropdown,
-tabs, tooltip and offcanvas are the next pass, listed here only so the
-conventions below are designed to carry them.
+Round one is **toasts, loading, placeholders and modals**. Round two —
+**collapse, tabs, dropdown, tooltip and offcanvas** — is §11.10, and the
+conventions below were designed to carry it before it was written.
 
 ### 11.1 The rule that keeps the core CSS-only
 
@@ -748,3 +748,192 @@ Beyond each component's own behavior, the suite holds layer 4 to §2:
 - **events** fire in order and the before-events are cancelable
 - **reduced motion** reaches the final state on frame 0 and leaves no timer
   running
+
+### 11.10 Round two: collapse, tabs, dropdown, tooltip, offcanvas
+
+Round one left these named but unspecified so the conventions could be
+designed to carry them (§11.2). They are, and the five fall out of two
+observations.
+
+**The first: a disclosure is `<details>`.** Collapse and dropdown are the same
+widget — a trigger and a region that is there or is not — differing only in
+whether the region is in flow or floating over it. `<details>`/`<summary>`
+gives both of them the trigger semantics, the keyboard, the `open` state and
+the accessible name for free, and gives §11.1 something better than a
+degradation: with no script a disclosure is not merely *visible*, it
+**works**. Nothing else in the framework can claim that. The cost is that the
+browser owns `open`, so the JS has to take the click, animate, and set `open`
+itself at the end of the close — and has to watch the `toggle` event, because
+`name=` accordion grouping closes a sibling with no click to intercept. That
+is the same shape as the modal's `close` listener and is handled the same way.
+
+**The second: the vertical axis has the same promise as the horizontal one.**
+§11.5 is only interesting because the placeholder reserves the cells the value
+will occupy. A tab strip whose panels are different heights, or a collapse that
+tweens a pixel height, breaks that promise on the other axis — the page below
+the component moves. So: a collapse animates in **whole rows on the tick**,
+never a fractional height, and a tab region is locked to the **tallest panel's
+row count**, measured, so switching tabs moves nothing at all. Both measure
+through `lib/cells.js`, which stays the one module that reads a pixel.
+
+#### Collapse
+
+```html
+<details class="collapse">
+  <summary>disk</summary>
+  <div class="collapse-body">…</div>
+</details>
+```
+
+The marker is a glyph, so it comes from the ranges that are one cell in all
+three bundled fonts — ASCII and U+2500-259F (glyphs.css). That excludes `▸`
+and `▾`, which is what a disclosure triangle wants to be and what every
+tempting example uses: U+25B8 is in Geometric Shapes, outside the measured
+range. So the default pair is ASCII `+`/`-`, exposed as
+`--wt-collapse-closed`/`--wt-collapse-open` for a page that ships a font where
+something better is exactly one cell.
+
+Opening steps the body's height from 0 to its natural row count, `k` rows per
+tick, where the tick count comes from `data-wt-duration` and not from the row
+count — the same reasoning as §11.5's settle schedule, and literally the same
+function, which moves to `lib/motion.js` as `stepPlan()` and is imported by
+both. Closing runs it backwards and only then clears `open`.
+
+The natural row count is measured once per animation, with the clamp off, in
+the same turn that starts it: `<details>` does not render its content while
+closed, so there is nothing to measure until `open` is set. Set it, read the
+height, clamp to zero and step — all before the frame paints, so the full
+height never flashes.
+
+#### Tabs
+
+```html
+<div class="tabs">
+  <div class="nav tabs-list">
+    <a href="#cpu" class="active">cpu</a>
+    <a href="#mem">mem</a>
+  </div>
+  <div class="tabs-panels">
+    <section class="tab-panel" id="cpu">…</section>
+    <section class="tab-panel" id="mem">…</section>
+  </div>
+</div>
+```
+
+With no script that is a document with two sections and two links to them,
+which is the honest static form: every panel readable, the nav working as
+in-page navigation. The module upgrades it in place — `role="tablist"`,
+`aria-selected`, roving `tabindex`, arrow/Home/End keys, inactive panels
+`hidden` — and reuses `.nav`, so a tab strip is not a second set of styles for
+something the grid layer already draws.
+
+The height lock is the part that matters. `.tabs-panels` is measured while
+every panel is still visible, before the first one is hidden, and pinned to
+the tallest in whole rows. Switching tabs then moves nothing below it.
+`data-wt-fit="content"` opts out for a page that would rather have the jump
+than the empty rows. Text rewraps when the window changes, so the row count is
+re-measured on resize — once, from one module-level listener over the live
+instances, rather than one listener per tab strip.
+
+No cross-fade and no slide: a terminal repaints a pane, and a transition
+between two panels that both have to stay on the grid would be a wipe at best.
+The switch is immediate, which is also the behavior reduced motion would force.
+
+#### Dropdown
+
+```html
+<details class="dropdown">
+  <summary class="btn">actions</summary>
+  <div class="box menu dropdown-menu" style="--cells: 20">…</div>
+</details>
+```
+
+Positioned with `top: 100%` against the summary rather than an offset in rows,
+so the menu lands directly below a trigger of any height and stays on the grid
+without arithmetic. The same trick does the edge flip: `.dropdown-up` is
+`bottom: 100%` and `.dropdown-end` is `right: 0`, so the JS flips a popup by
+switching which edge it is anchored to — nothing is ever shifted by a computed
+distance, and therefore nothing can land mid-cell. Deciding *whether* to flip
+needs the viewport, which is a pixel read, so it goes through a new
+`cells.overflow(el)` that reports how far a box falls outside in whole cells
+and rows. Tooltip uses it too.
+
+The module adds what a native `<details>` has no opinion about: Escape, a
+click outside, one open at a time, roving focus through the menu items, and
+focus back to the summary on close. `--wt-z-dropdown` is 15 — above the status
+bar, because a dropdown in a status bar is the whole reason the status bar
+exists.
+
+#### Tooltip
+
+```html
+<span class="tip" data-wt-tip="replica charlie is behind">charlie</span>
+```
+
+CSS-only in its static form: `.tip::after` takes its text from the attribute
+and shows on `:hover`/`:focus-visible`. It is an inverse-video strip, one row
+tall or wrapped to whole rows, `fit-content` wide so the box is the width of
+its longest line in cells.
+
+No arrow. A CSS triangle is a sub-cell shape and the glyph that would stand in
+for one is not in the single-cell range, so the bubble sits directly against
+the trigger's edge instead. That is what a TUI hint line does.
+
+Two things the pseudo-element cannot do are the reason the module replaces it
+with a real `.tip-bubble` once it has loaded: it cannot be the target of
+`aria-describedby`, and it cannot be flipped away from a viewport edge.
+`html[data-wt-ready] .tip::after { content: none }` hands over — CSS keyed on
+the ready flag the registry already sets, which is the dependency pointing the
+allowed way (§11.1 forbids the static form needing the JS, not the JS
+improving on it). The module also adds the open delay, in ticks.
+
+#### Offcanvas
+
+```html
+<dialog class="box offcanvas offcanvas-left" style="--cells: 28">…</dialog>
+```
+
+A `<dialog>`, exactly like the modal, which means `class Offcanvas extends
+Modal`: `showModal()`, Escape, the inert background, the top layer, the
+reference-counted scroll lock and the `░` backdrop are all already written and
+all already specced. What is new is one axis of geometry and one animation —
+`--cells` wide and the viewport's whole rows tall for a side panel, `--rows`
+tall for a top or bottom one — and the slide, which steps `--wt-slide` from the
+panel's cell count to zero through `stepPlan()`, so every frame of it is a
+whole-cell translate.
+
+`--wt-z-offcanvas` goes in the scale at 31 and the modal moves to 32, so a
+dialog opened from inside a drawer is above it. The top layer makes that
+ordering moot for two `showModal()` dialogs, and the token still has to be
+right for a page that opens one non-modally.
+
+#### Phases
+
+Same protocol: failing assertions first, then the CSS, then the JS, then the
+README, then `npm test` green.
+
+| phase | contents | why in this order |
+|-------|----------|-------------------|
+| 6 | collapse, `stepPlan()` out of §11.5 into `lib/motion.js`, `cells.roundRows()` | in flow, no positioning, and it establishes row-stepping for the two components that reuse it |
+| 7 | tabs | needs row measuring, nothing else; no overlay, no popup |
+| 8 | dropdown, `cells.overflow()` | first popup: light dismiss, roving focus, the edge flip |
+| 9 | tooltip | reuses the flip and the ready-flag handover |
+| 10 | offcanvas | extends Modal, so it lands last and smallest |
+| 11 | docs: README sections, the test-status table, §11 limitations |
+
+#### What the specs add
+
+Beyond each component's own behavior, round two extends the §11.9 sweeps
+rather than restating them:
+
+- **the vertical axis of "no layout shift"** — a collapse's height is a whole
+  number of rows at every sampled tick and never decreases while opening; a
+  tab switch leaves the row below the panels at the same y
+- **the disclosure degrades to a working widget** — with scripts disabled, a
+  `<details class="collapse">` still opens, and its summary and body are on
+  the grid in both states
+- **popups land on the grid after a flip**, at the viewport edges where the
+  flip triggers, not only in the middle of the page
+- **single-cell glyphs** extends to the collapse markers, in all three fonts
+- **one timer** — a tooltip's delay, a collapse's step and a drawer's slide all
+  go through the one clock, so `motion.clock.jobs` returns to zero after each

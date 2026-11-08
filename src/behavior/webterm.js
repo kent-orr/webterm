@@ -24,6 +24,7 @@ import { Progress, fillCells, setLoading, isLoading } from './progress.js';
 import { Placeholder, CHARSETS } from './placeholder.js';
 import { Toast, toast, toastStack, clearToasts, toastQueue, useConfig } from './toast.js';
 import { Modal, confirm, prompt } from './modal.js';
+import { Collapse } from './collapse.js';
 
 export const version = '0.1.0';
 
@@ -48,6 +49,7 @@ export { Progress, fillCells, setLoading, isLoading };
 export { Placeholder, CHARSETS };
 export { Toast, toast, toastStack, clearToasts, toastQueue };
 export { Modal, confirm, prompt };
+export { Collapse };
 
 
 /* ---------------------------------------------------------------- data API */
@@ -110,6 +112,7 @@ register('progress', Progress);
 register('placeholder', Placeholder);
 register('toast', Toast);
 register('modal', Modal);
+register('collapse', Collapse);
 
 /** The placeholder on `el`, mounting it if it has none. */
 export function ph(el) {
@@ -147,6 +150,7 @@ const api = {
   Modal,
   confirm,
   prompt,
+  Collapse,
 };
 
 if (typeof window !== 'undefined') {
