@@ -6,7 +6,7 @@
 <title>webterm — behavior layer</title>
 <link rel="stylesheet" href="../fonts/webterm-fonts.css">
 <link rel="stylesheet" href="../src/webterm.css">
-<link id="theme" rel="stylesheet" href="">
+<link id="theme" rel="stylesheet" href="../src/themes/pawpaw.css">
 </head>
 <body>
 <div class="screen">
@@ -315,7 +315,7 @@ $('#font').addEventListener('change', async (e) => {
 });
 
 $('#theme-pick').addEventListener('change', (e) => {
-  $('#theme').href = e.target.value ? '../src/themes/' + e.target.value + '.css' : '';
+  $('#theme').href = '../src/themes/' + (e.target.value || 'pawpaw') + '.css';
 });
 
 $('#motion').addEventListener('change', (e) => {

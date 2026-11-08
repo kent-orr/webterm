@@ -93,7 +93,7 @@ Fonts must be served over http — Chromium will not load a `@font-face` file
 over `file://`. There is a server in the repo for that:
 
 ```sh
-npm run serve          # then open the printed URL
+npm run serve          # then open the printed URL: the test page index
 ```
 
 ### Picking a theme
@@ -563,10 +563,17 @@ Re-run both calibration steps after changing a font file or the Chromium
 version, then copy each ratio into `tokens.css` — the spec fails if they
 disagree.
 
-Pages worth opening: `test/components.html` (every CSS component, with live
-font and theme pickers and a cell/row readout), `test/behavior.html` (the
-behavior layer, with a motion switch), `test/default-theme.html` (the framework
-with no theme link), `test/metrics.html` (the calibration harness).
+`npm run serve` prints the URL of `test/index.html`, which links the rest and
+says what each one is for:
+
+- `test/components.html` — every CSS component, with live font and theme
+  pickers and a cell/row readout
+- `test/behavior.html` — the behavior layer, with a motion switch
+- `test/default-theme.html` — the framework with no theme link, so the shipped
+  default has to paint it
+- `test/metrics.html` — the font calibration harness
+
+Each is built with the framework it tests.
 
 `PLAN.md` is the design document: the rules, the layer architecture, the
 measured font metrics, and the reasoning behind each rejected alternative.

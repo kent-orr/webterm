@@ -5,5 +5,6 @@ const { startServer } = require('../test/lib/server');
 
 const want = Number(process.argv[2] || process.env.PORT || 8080);
 startServer(want).then(({ origin }) => {
-  process.stdout.write(`webterm: ${origin}/test/components.html\n`);
+  // The index links the rest, so one URL is all this needs to print.
+  process.stdout.write(`webterm: ${origin}/test/\n`);
 });

@@ -17,11 +17,14 @@ const TYPES = {
 function startServer(port = 0) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
-    const file = path.resolve(ROOT, '.' + decodeURIComponent(url.pathname));
+    let file = path.resolve(ROOT, '.' + decodeURIComponent(url.pathname));
     if (!file.startsWith(ROOT + path.sep)) {
       res.writeHead(403).end();
       return;
     }
+    // A directory serves its index.html, so /test/ reaches the page listing
+    // the others. readFile on a directory is EISDIR, which would 404.
+    if (url.pathname.endsWith('/')) file = path.join(file, 'index.html');
     fs.readFile(file, (err, data) => {
       if (err) {
         res.writeHead(404).end();

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — test pages</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="../src/themes/pawpaw.css" id="theme">
+<style>
+  /* Page chrome only. Nothing here sets a length that is not a whole cell. */
+  body { padding-bottom: 2lh; }
+  .screen { padding: 1lh 1ch; }
+</style>
+</head>
+<body>
+
+<div class="screen">
+
+  <h1>webterm</h1>
+
+  <p class="mt-1 dim">Every page here is built with the framework it is
+  testing. Served over http so the bundled fonts load — Chromium will not take
+  a <code>@font-face</code> file over <code>file://</code>.</p>
+
+  <div class="box mt-2">
+    <span class="box-edge"></span>
+    <span class="box-title">Pages</span>
+
+    <dl class="kv">
+      <dt><a href="components.html">components.html</a></dt>
+      <dd>Every CSS component, with live font and theme pickers and a cell/row
+      readout. The kitchen sink <code>grid.spec.js</code> measures.</dd>
+
+      <dt><a href="behavior.html">behavior.html</a></dt>
+      <dd>Layer 4: toasts, loading, placeholders and modals, with a motion
+      switch. The page <code>behavior.spec.js</code> measures — including with
+      JavaScript disabled.</dd>
+
+      <dt><a href="default-theme.html">default-theme.html</a></dt>
+      <dd>The framework with no theme <code>&lt;link&gt;</code> at all, so the
+      shipped default has to paint it. <code>default.spec.js</code>.</dd>
+
+      <dt><a href="metrics.html">metrics.html</a></dt>
+      <dd>The font calibration harness: line-height limits, seam tests and cell
+      measurement. <code>metrics.spec.js</code> and
+      <code>tools/calibrate.js</code>.</dd>
+    </dl>
+  </div>
+
+  <div class="box mt-2">
+    <span class="box-edge"></span>
+    <span class="box-title">Suites</span>
+    <table class="table-zebra">
+      <colgroup>
+        <col style="width: 22ch"><col style="width: 10ch"><col style="width: 40ch">
+      </colgroup>
+      <thead>
+        <tr><th>spec</th><th class="num">tests</th><th>what it holds</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>themes.spec.js</td><td class="num">206</td><td>theme contract and contrast</td></tr>
+        <tr><td>readme.spec.js</td><td class="num">8</td><td>every claim the README can be held to</td></tr>
+        <tr><td>grid.spec.js</td><td class="num">46</td><td>integer cells, continuous borders</td></tr>
+        <tr><td>default.spec.js</td><td class="num">5</td><td>the default paints, a link beats it</td></tr>
+        <tr><td>behavior.spec.js</td><td class="num">117</td><td>layer 4, cell-exact mid-animation</td></tr>
+        <tr><td>metrics.spec.js</td><td class="num">340</td><td>font metrics — 100 known failures</td></tr>
+      </tbody>
+    </table>
+    <p class="mt-1 dim">npm test runs all of them in one process: 722 tests,
+    622 pass. The 100 failures are a wrong assertion rather than a layout bug
+    — see PLAN §8.</p>
+  </div>
+
+  <div class="row mt-2">
+    <div class="col-24">
+      <label class="form-label" for="font">font</label>
+      <div class="select select-24">
+        <select id="font">
+          <option value="font-jetbrains-mono">JetBrains Mono</option>
+          <option value="font-iosevka">Iosevka</option>
+          <option value="font-dejavu-sans-mono">DejaVu Sans Mono</option>
+        </select>
+      </div>
+    </div>
+    <div class="col-24">
+      <label class="form-label" for="theme-pick">theme</label>
+      <div class="select select-24">
+        <select id="theme-pick">
+          <option value="">pawpaw (default)</option>
+          <option value="tomorrow-night">tomorrow-night</option>
+          <option value="solarized-dark">solarized-dark</option>
+          <option value="solarized-light">solarized-light</option>
+          <option value="gruvbox-dark">gruvbox-dark</option>
+          <option value="dracula">dracula</option>
+          <option value="nord">nord</option>
+          <option value="green-phosphor">green-phosphor</option>
+          <option value="amber-phosphor">amber-phosphor</option>
+        </select>
+      </div>
+    </div>
+    <div class="col"></div>
+  </div>
+
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm</span>
+  <span class="spacer"></span>
+  <span id="s-font">—</span>
+  <span id="s-geom">—</span>
+</div>
+
+<script>
+// Demo page only: the framework itself is CSS, and layer 4 is a separate
+// optional module this page does not need.
+const $ = (s) => document.querySelector(s);
+
+function readout() {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;width:100ch;height:100lh';
+  document.body.append(probe);
+  const r = probe.getBoundingClientRect();
+  probe.remove();
+  const ch = r.width / 100;
+  const lh = r.height / 100;
+  const screen = $('.screen').getBoundingClientRect();
+  $('#s-font').textContent = getComputedStyle(document.documentElement)
+    .fontFamily.split(',')[0].replace(/"/g, '');
+  $('#s-geom').textContent = Math.round(screen.width / ch) + '×' +
+    Math.floor(window.innerHeight / lh);
+}
+
+$('#font').addEventListener('change', async (e) => {
+  document.documentElement.className = e.target.value;
+  await document.fonts.ready;
+  readout();
+});
+
+$('#theme-pick').addEventListener('change', (e) => {
+  $('#theme').href = '../src/themes/' + (e.target.value || 'pawpaw') + '.css';
+});
+
+addEventListener('resize', readout);
+document.fonts.ready.then(() => {
+  readout();
+  document.documentElement.dataset.ready = '1';
+});
+</script>
+</body>
+</html>
