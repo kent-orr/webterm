@@ -8,6 +8,13 @@
  *   <link rel="stylesheet" href="src/webterm.css">
  *   <link rel="stylesheet" href="src/themes/tomorrow-night.css">
  *
+ * The theme <link> is optional: webterm ships one, Pawpaw, imported below.
+ * It is imported into a cascade layer, and an unlayered rule beats a layered
+ * one whatever the order, so a theme <link> — or a stray --bg in the page's
+ * own <style> — replaces the default whether it comes before this file or
+ * after it. That also means the default theme cannot be the one place a
+ * semantic alias gets overridden; see the note in themes/pawpaw.css.
+ *
  * The grid layer names no literal color; the theme fills the ANSI slots.
  * Put exactly one font class on <html> (see src/grid/tokens.css).
  */
@@ -20,3 +27,4 @@
 @import url("grid/table.css");
 @import url("grid/forms.css");
 @import url("grid/components.css");
+@import url("themes/pawpaw.css") layer(webterm-default-theme);

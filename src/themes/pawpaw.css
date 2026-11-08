@@ -1,0 +1,65 @@
+/* Pawpaw. The Pawpaw Analytics house palette, from the design system's own
+ * tokens (colors_and_type.css, Kent Orr — pawpawanalytics.com), taking the
+ * dark-mode value wherever the system publishes a pair.
+ *
+ * This is webterm's default theme: src/webterm.css imports it, so a page that
+ * links nothing but the framework still renders. A theme <link> replaces it
+ * whole (see the cascade note in webterm.css), which is why nothing here
+ * overrides a semantic alias — a default that overrode --accent would leave
+ * that override behind on every other theme that does not set it. The brand
+ * ramp does not need one: --muted/--border inherit --c8 at 4.65:1 on the
+ * background, where Tomorrow Night, Solarized Dark, Gruvbox and Nord all have
+ * to patch theirs.
+ *
+ * Deriving the slots the brand does not own
+ * -----------------------------------------
+ * The brand has five hues — pacific cyan, mint, flame, Payne's gray, space
+ * cadet — and an ANSI scheme needs six plus two neutral ramps. The missing
+ * slots are derived from the ones the brand does own, not invented:
+ *
+ *   level   The published accents fix two levels in OKLCh. Normal (slots 1-6)
+ *           is the mean lightness and chroma of flame/mint/cyan as published
+ *           (L 0.681, C 0.133); bright (9-14) is the mean of their dark-mode
+ *           variants (L 0.761, C 0.122) — brighter and a little less saturated,
+ *           which is the move the design system itself makes for dark mode.
+ *           Every derived slot sits at its level's L and C, with chroma clipped
+ *           to the sRGB gamut, so it reads as a member of the same family.
+ *   blue    Payne's gray's hue, 270° — the one blue-leaning brand hue — lifted
+ *           from a neutral to accent chroma.
+ *   magenta 333°, the midpoint of the one gap left in the brand hue wheel,
+ *           between Payne's gray (270°) and flame (36°).
+ *   yellow  the hue of the brand's warning token, 65°. That token (#f0a04b)
+ *           already sits at the bright level, so it is slot 11 as published and
+ *           slot 3 is the same hue stepped down to the normal level.
+ *
+ * Neutrals are the brand's own: gray-900 is the canvas, space cadet the panel
+ * fill (slot 0, a 1.27:1 step — a panel, not a second background), the dark
+ * mode's Payne's gray the dim ramp, and gray-200/gray-50 the two whites.
+ * The cursor and the selection are pacific cyan, where the brand's primary
+ * color belongs on a terminal.
+ */
+:root {
+  --bg: #0f1a1c;
+  --fg: #e8e9ea;
+  --cursor: #5ac7df;
+  --cursor-fg: #0f1a1c;
+  --sel: #186a7f;
+  --sel-fg: #eaf6f9;
+
+  --c0: #1b2f33;
+  --c1: #e4572e;
+  --c2: #6eb07e;
+  --c3: #d08531;
+  --c4: #7993eb;
+  --c5: #c978bb;
+  --c6: #2eb2ce;
+  --c7: #d4d8e0;
+  --c8: #7a8396;
+  --c9: #ff7759;
+  --c10: #8dc99d;
+  --c11: #f0a04b;
+  --c12: #94adff;
+  --c13: #e093d2;
+  --c14: #5ac7df;
+  --c15: #f6f7f9;
+}

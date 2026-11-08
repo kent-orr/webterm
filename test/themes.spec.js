@@ -30,10 +30,15 @@ const SHIPPED = [
   'green-phosphor.css',
   'gruvbox-dark.css',
   'nord.css',
+  'pawpaw.css',
   'solarized-dark.css',
   'solarized-light.css',
   'tomorrow-night.css',
 ];
+
+// PLAN §5.2: one of the shipped themes is the default, imported by
+// src/webterm.css so a page that links nothing else still renders.
+const DEFAULT = 'pawpaw.css';
 
 // Each entry: [label, foreground var, background var, minimum ratio, why].
 const PAIRS = [
@@ -61,7 +66,7 @@ const loaded = new Map(files.map((f) => [f, theme.readTheme(f)]));
 const resolved = new Map(files.map((f) => [f, theme.resolve(loaded.get(f))]));
 
 describe('theme contract (PLAN §5.1)', () => {
-  test('all eight schemes in PLAN §5.2 ship', () => {
+  test('every scheme in PLAN §5.2 ships', () => {
     assert.deepEqual(files, SHIPPED);
   });
 
@@ -157,14 +162,67 @@ describe('theme legibility', () => {
   }
 });
 
+// A theme is loaded by one <link>, but a framework with no colors of its own
+// renders an unstyled page until the author picks one. src/webterm.css imports
+// the default theme itself, which is checkable here: the browser side of it —
+// that the page really paints, and that a later <link> still wins — is
+// test/default.spec.js.
+describe('the default theme (PLAN §5.2)', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'webterm.css'), 'utf8');
+  const imports = [...theme.stripComments(css).matchAll(/@import\s+url\(\s*["']([^"']+)["']\s*\)/g)]
+    .map((m) => m[1]);
+  const themeImports = imports.filter((i) => i.startsWith('themes/'));
+
+  test('webterm.css imports exactly one theme', () => {
+    assert.deepEqual(themeImports, [`themes/${DEFAULT}`]);
+  });
+
+  test('the default theme is a shipped theme', () => {
+    assert.ok(SHIPPED.includes(DEFAULT), `${DEFAULT} is not in src/themes/`);
+  });
+
+  test('the default theme is the last @import, after the grid layer', () => {
+    assert.equal(imports.at(-1), `themes/${DEFAULT}`);
+  });
+
+  // It is imported into a cascade layer so that a theme <link> wins over it
+  // even when the author puts the link before webterm.css.
+  test('the default theme is imported into a cascade layer', () => {
+    assert.match(theme.stripComments(css), /@import\s+url\(\s*["']themes\/[^"']+["']\s*\)\s*layer\([\w-]+\)/);
+  });
+
+  // A theme is swapped by one <link>, and a <link>ed theme only declares its
+  // own variables. Anything the default theme sets that the next theme does
+  // not — an alias override is the only candidate, since the §5.1 slots are
+  // mandatory — would survive the swap and tint the new scheme. Overriding an
+  // alias is legal for a theme, so this is a rule about the default theme
+  // only: it has to be the one scheme that needs no override.
+  test('the default theme overrides no semantic alias', () => {
+    const declared = [...theme.readTheme(DEFAULT).raw.keys()].filter((v) => theme.ALIASES.includes(v));
+    assert.deepEqual(declared, [], `${DEFAULT} may not override an alias while it is the default`);
+  });
+});
+
 describe('the theme picker lists every shipped theme', () => {
   // test/components.html is the kitchen sink and the only consumer of the
   // theme directory; a theme nobody can select is a theme nobody reviews.
+  const html = fs.readFileSync(path.join(__dirname, 'components.html'), 'utf8');
+
   test('components.html offers all of them', () => {
-    const html = fs.readFileSync(path.join(__dirname, 'components.html'), 'utf8');
     const picker = /<select id="theme-pick">([\s\S]*?)<\/select>/.exec(html);
     assert.ok(picker, 'no #theme-pick select in components.html');
     const options = [...picker[1].matchAll(/value="([^"]+)"/g)].map((m) => `${m[1]}.css`).sort();
     assert.deepEqual(options, SHIPPED);
+  });
+
+  // The kitchen sink is where a theme gets looked at, so it opens on the one
+  // every other page gets by default.
+  test('components.html opens on the default theme', () => {
+    const link = /<link[^>]+id="theme"[^>]*>/.exec(html);
+    assert.ok(link, 'no <link id="theme"> in components.html');
+    assert.match(link[0], new RegExp(`themes/${DEFAULT.replace('.', '\\.')}`));
+    const picker = /<select id="theme-pick">([\s\S]*?)<\/select>/.exec(html);
+    const first = /value="([^"]+)"/.exec(picker[1])[1];
+    assert.equal(`${first}.css`, DEFAULT, 'the picker should start on the default theme');
   });
 });

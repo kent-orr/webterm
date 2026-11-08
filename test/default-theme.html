@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — default theme</title>
+<!--
+  The deliberately minimal page: fonts and the framework, no theme <link>.
+  Whatever colors show up here are the default theme webterm ships with
+  (PLAN §5.2). test/default.spec.js reads them back.
+-->
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+</head>
+<body>
+
+<div class="screen">
+  <h1>webterm</h1>
+  <p class="mt-1">This page links no theme. It is the shipped default.</p>
+  <p class="dim">Dim text, for the faint attribute.</p>
+
+  <div class="box mt-1">
+    <span class="box-edge"></span>
+    <span class="box-title">box</span>
+    <p>Body text on the box fill, with <a href="#">a link</a> and
+    <code>code</code> in it.</p>
+  </div>
+
+  <div class="box alert alert-ok mt-1">
+    <span class="box-edge"></span>
+    <span class="box-title">ok</span>
+    <p>Migration applied.</p>
+  </div>
+  <div class="box alert alert-info mt-1">
+    <span class="box-edge"></span>
+    <span class="box-title">info</span>
+    <p>Replica charlie caught up.</p>
+  </div>
+
+  <p class="mt-1"><input class="field" value="an input" aria-label="an input"></p>
+</div>
+
+<script>
+document.fonts.ready.then(() => { document.documentElement.dataset.ready = '1'; });
+</script>
+</body>
+</html>

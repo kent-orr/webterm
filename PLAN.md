@@ -257,8 +257,9 @@ Semantic aliases layered on top so components read clearly:
 ### 5.2 Default themes to ship — done, milestone 5
 
 Tomorrow Night, Solarized Dark, Solarized Light, Gruvbox Dark, Dracula,
-Nord, plus a plain "green phosphor" and "amber phosphor". All eight are in
-`src/themes/`, selectable from `test/components.html`.
+Nord, plus a plain "green phosphor" and "amber phosphor", plus **Pawpaw**,
+the default (below). All nine are in `src/themes/`, selectable from
+`test/components.html`.
 
 The six published schemes are transcribed as their authors define them. The
 two phosphor themes are ours: a monochrome CRT has one phosphor, so an ANSI
@@ -268,7 +269,30 @@ over the usable range of the gun (pure luminance leaves blue at 1.2:1), mixed
 in linear light — which is what beam current is linear in. An error box and
 an info box therefore differ in intensity but not in hue, as on the hardware.
 
-`test/themes.spec.js` lints all eight without a browser, in two halves:
+**The default: Pawpaw.** A framework with no colors of its own renders an
+unstyled page until the author picks a theme, so `src/webterm.css` imports
+one: `themes/pawpaw.css`, the Pawpaw Analytics house palette taken from the
+design system's own tokens (dark-mode values where it publishes a pair). The
+brand owns five hues and an ANSI scheme needs six plus two neutral ramps, so
+the slots the brand does not own are derived rather than invented — the two
+published accent levels fix a lightness and chroma in OKLCh, blue takes
+Payne's gray's hue, magenta the midpoint of the one gap left in the brand hue
+wheel, and yellow the brand warning token's hue; the file's header comment
+carries the arithmetic. It needs no `--muted`/`--border` override: `--c8` is
+the dark mode's Payne's gray at 4.65:1.
+
+Two mechanics make a default theme safe to ship:
+
+- it is imported into a cascade layer (`layer(webterm-default-theme)`), and
+  an unlayered rule beats a layered one at any order, so a theme `<link>`
+  replaces it whole even when the link comes *before* `webterm.css`;
+- the default theme may not override a semantic alias. A `<link>`ed theme
+  declares only its own variables, so an alias the default set and the next
+  theme does not would survive the swap and tint the new scheme. Overriding
+  an alias stays legal for every other theme; `themes.spec.js` enforces this
+  one on the default.
+
+`test/themes.spec.js` lints all nine without a browser, in two halves:
 
 - *contract* — each declares exactly the §5.1 set, as hex, under `:root`
   only, and sets no property that is not a custom property. That is what
@@ -285,8 +309,13 @@ Every floor exists because a raw ANSI slot fails it somewhere. Dim is `--c8`,
 and in Tomorrow Night and Solarized Dark `--c8` *is* the background, so the
 faint attribute would be invisible; Nord's `--c8` sits at 2.0:1. Those three
 and Gruvbox override `--muted`/`--border`, and the suite is what says they
-must. The phosphor ramps need no override: the dim slot is well behaved by
-construction.
+must. The phosphor ramps and Pawpaw need no override: the dim slot is well
+behaved by construction.
+
+`test/default.spec.js` is the browser half of the default: it loads
+`test/default-theme.html`, the page that links nothing but the framework, and
+asserts every contract variable resolves to Pawpaw's value, that the page
+actually paints them, and that a theme `<link>` added afterwards still wins.
 
 ### 5.3 Theme generator (tabled, see §8)
 
@@ -318,7 +347,8 @@ webterm/
   src/
     grid/        reset.css tokens.css layout.css box.css type.css
                  table.css forms.css components.css
-    themes/      tomorrow-night.css solarized-dark.css ...
+    themes/      pawpaw.css (the default) tomorrow-night.css
+                 solarized-dark.css ...
     skin/        crt.css
   dist/          built single-file bundles (webterm.css, webterm.min.css)
   fonts/         bundled full-coverage woff2 + webterm-fonts.css,
@@ -328,7 +358,9 @@ webterm/
     metrics.spec.js      node:test + Playwright: seams, ch/lh exactness
     calibration.json     last calibration sweep (source of each K)
     components.html      visual kitchen-sink
+    default-theme.html   the framework with no theme <link> (§5.2)
     themes.spec.js       theme contract + contrast lint (no browser)
+    default.spec.js      the shipped default paints, and a <link> beats it
     lib/color.js         hex -> luminance -> WCAG contrast
     lib/theme.js         theme file -> resolved variable map
     *.spec.js            Playwright: assert computed widths are integer ch
@@ -379,8 +411,10 @@ webterm/
 3. **Type + table** — typography scale, table, `hr`, lists. ✅
 4. **Forms + components** — buttons, inputs, progress, alerts, nav, status. ✅
 5. **Themes** — variable contract frozen; hand-write 8 themes. ✅
-   All 8 written; `test/themes.spec.js` lints each one for the contract and
-   for the contrast of every pair the grid layer paints (§5.2).
+   All 8 written, plus Pawpaw, which `src/webterm.css` imports as the
+   default; `test/themes.spec.js` lints each one for the contract and for the
+   contrast of every pair the grid layer paints, and `test/default.spec.js`
+   checks the default in the browser (§5.2).
 6. **Tests** — Playwright checks: every `.box` edge lands on an integer
    `ch`/`lh` boundary; borders have no sub-cell gaps (pixel diff).
 7. **Skin** — `.crt`.
