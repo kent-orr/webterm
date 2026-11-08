@@ -668,3 +668,26 @@ dialog.modal > .backdrop {
   height: calc(var(--rows, 0) * 1lh);
   overflow: hidden;
 }
+
+/*
+ * ---------------------------------------------------------------------- tabs
+ *
+ * PLAN §11.10. There is almost nothing here, which is the point: the strip is
+ * a .nav, the panels are ordinary sections, and with no script the whole thing
+ * is a document with three sections and three links to them. Every panel is
+ * readable, the links work, and nothing is hidden by a stylesheet that is
+ * waiting for a script to undo it (§11.1).
+ *
+ * The one rule is the height lock, and it is the reason tabs are in this
+ * framework at all. Panels are different heights, so switching them moves
+ * everything below — which is §11.5's broken promise on the other axis. The
+ * behavior layer measures every panel, pins the region to the tallest in whole
+ * rows, and from then on a tab change moves nothing.
+ *
+ * Added by the JS, because only the JS can measure it; `data-wt-fit="content"`
+ * on the .tabs opts out and lets the region follow its panel.
+ */
+.tabs-fixed {
+  height: calc(var(--rows, 0) * 1lh);
+  overflow: hidden;
+}

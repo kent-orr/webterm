@@ -2709,6 +2709,295 @@ describe('collapse', () => {
   });
 });
 
+// ---------------------------------------------------------------------- tabs
+//
+// PLAN §11.10. The static form is a document with sections and links to them,
+// which is the honest no-script answer and also the reason the strip is a
+// .nav: the grid layer already draws this.
+//
+// The assertion that matters is the height lock. A tab strip whose panels are
+// different heights moves the page every time the tab changes, which is the
+// same broken promise §11.5 exists to avoid on the horizontal axis.
+describe('tabs', () => {
+  const ids = ['#tab-cpu', '#tab-mem', '#tab-net'];
+
+  test('the panel region is pinned to the tallest panel, in whole rows', async () => {
+    const r = await page.evaluate((list) => {
+      const el = document.querySelector('#tabs-demo');
+      const t = window.Webterm.getOrCreate('tabs', el);
+      const panels = el.querySelector(':scope > .tabs-panels');
+      // Each panel's own natural height, measured with the lock off.
+      const natural = [];
+      t.unlock();
+      for (const id of list) {
+        const p = document.querySelector(id);
+        const was = p.hidden;
+        p.hidden = false;
+        natural.push(p.getBoundingClientRect().height);
+        p.hidden = was;
+      }
+      t.remeasure();
+      return {
+        natural,
+        locked: panels.getBoundingClientRect().height,
+        rows: Number(panels.style.getPropertyValue('--rows')),
+      };
+    }, ids);
+    const tallest = Math.max(...r.natural);
+    assert.ok(Number.isInteger(r.rows) && r.rows > 0, `--rows is ${r.rows}`);
+    assert.ok(offGrid(r.locked, cell.lh) < TOL, `the panel region is ${r.locked}px tall`);
+    assert.ok(Math.abs(r.locked - r.rows * cell.lh) < TOL, `${r.locked}px for ${r.rows} rows`);
+    assert.ok(r.locked >= tallest - TOL, `locked to ${r.locked}px but the tallest panel is ${tallest}px`);
+    assert.ok(r.locked - tallest < cell.lh, `locked to ${r.locked}px, a row or more above the tallest panel's ${tallest}px`);
+  });
+
+  // The promise, stated as the reader sees it: the row under the component
+  // does not move, whichever tab is selected.
+  test('switching tabs moves nothing below the panels', async () => {
+    const r = await page.evaluate((list) => {
+      const el = document.querySelector('#tabs-demo');
+      const t = window.Webterm.getOrCreate('tabs', el);
+      const after = document.querySelector('#tabs-after');
+      const ys = [];
+      const heights = [];
+      for (const id of list) {
+        t.select(id);
+        ys.push(after.getBoundingClientRect().y);
+        heights.push(el.getBoundingClientRect().height);
+      }
+      t.select(list[0]);
+      return { ys: [...new Set(ys)], heights: [...new Set(heights)] };
+    }, ids);
+    assert.equal(r.ys.length, 1, `the row below the panels took ${r.ys.length} positions: ${r.ys.join(', ')}`);
+    assert.equal(r.heights.length, 1, `the component took ${r.heights.length} heights: ${r.heights.join(', ')}`);
+  });
+
+  test('exactly one panel is shown, and it is the one the strip points at', async () => {
+    const r = await page.evaluate((list) => {
+      const el = document.querySelector('#tabs-demo');
+      const t = window.Webterm.getOrCreate('tabs', el);
+      const out = [];
+      for (const id of list) {
+        t.select(id);
+        const visible = list.filter((other) => !document.querySelector(other).hidden);
+        const active = [...el.querySelectorAll('.tabs-list > *')].filter((a) => a.classList.contains('active'));
+        out.push({
+          id,
+          visible,
+          activeHref: active.map((a) => new URL(a.href).hash),
+          selected: active.map((a) => a.getAttribute('aria-selected')),
+        });
+      }
+      t.select(list[0]);
+      return out;
+    }, ids);
+    for (const row of r) {
+      assert.deepEqual(row.visible, [row.id], `${row.id} selected but ${row.visible.join(', ')} visible`);
+      assert.deepEqual(row.activeHref, [row.id], `${row.id} selected but the strip marks ${row.activeHref.join(', ')}`);
+      assert.deepEqual(row.selected, ['true']);
+    }
+  });
+
+  test('the strip is a tablist with the roles and the roving tabindex', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tabs-demo');
+      window.Webterm.getOrCreate('tabs', el);
+      const list = el.querySelector(':scope > .tabs-list');
+      const tabs = [...list.children];
+      const panels = [...el.querySelectorAll('.tab-panel')];
+      return {
+        listRole: list.getAttribute('role'),
+        tabRoles: [...new Set(tabs.map((t) => t.getAttribute('role')))],
+        controls: tabs.map((t) => t.getAttribute('aria-controls')),
+        ids: panels.map((p) => p.id),
+        tabindex: tabs.map((t) => t.getAttribute('tabindex')),
+        selected: tabs.map((t) => t.getAttribute('aria-selected')),
+        panelRoles: [...new Set(panels.map((p) => p.getAttribute('role')))],
+        labelled: panels.map((p) => !!p.getAttribute('aria-labelledby')),
+      };
+    });
+    assert.equal(r.listRole, 'tablist');
+    assert.deepEqual(r.tabRoles, ['tab']);
+    assert.deepEqual(r.panelRoles, ['tabpanel']);
+    assert.deepEqual(r.controls, r.ids, 'every tab must name the panel it controls');
+    assert.deepEqual(r.labelled, r.ids.map(() => true), 'every panel must be labelled by its tab');
+    assert.equal(r.tabindex.filter((t) => t === '0').length, 1, `roving tabindex is ${r.tabindex.join(', ')}`);
+    assert.deepEqual(r.tabindex.filter((t) => t !== '0'), ['-1', '-1']);
+    assert.equal(r.selected.filter((s) => s === 'true').length, 1);
+  });
+
+  test('arrow keys, Home and End move the selection', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tabs-demo');
+      const t = window.Webterm.getOrCreate('tabs', el);
+      t.select('#tab-cpu');
+      const tabs = [...el.querySelectorAll('.tabs-list > *')];
+      const press = (key) => {
+        const focused = tabs.find((x) => x.getAttribute('tabindex') === '0');
+        focused.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        return new URL(tabs.find((x) => x.classList.contains('active')).href).hash;
+      };
+      const out = {
+        right: press('ArrowRight'),
+        right2: press('ArrowRight'),
+        wrap: press('ArrowRight'),
+        left: press('ArrowLeft'),
+        end: press('End'),
+        home: press('Home'),
+        focused: document.activeElement === tabs[0],
+      };
+      t.select('#tab-cpu');
+      return out;
+    });
+    assert.equal(r.right, '#tab-mem');
+    assert.equal(r.right2, '#tab-net');
+    assert.equal(r.wrap, '#tab-cpu', 'ArrowRight past the last tab must wrap');
+    assert.equal(r.left, '#tab-net', 'ArrowLeft before the first tab must wrap');
+    assert.equal(r.end, '#tab-net');
+    assert.equal(r.home, '#tab-cpu');
+    assert.equal(r.focused, true, 'the keyboard must move focus with the selection');
+  });
+
+  // An in-page anchor that is now a tab must not also scroll the page to the
+  // panel or push a history entry.
+  test('a click on a tab selects it without navigating', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tabs-demo');
+      const t = window.Webterm.getOrCreate('tabs', el);
+      t.select('#tab-cpu');
+      const hash = location.hash;
+      const y = window.scrollY;
+      el.querySelector('.tabs-list > *:nth-child(2)').click();
+      const out = { hash: location.hash, was: hash, y: window.scrollY, wasY: y, shown: !document.querySelector('#tab-mem').hidden };
+      t.select('#tab-cpu');
+      return out;
+    });
+    assert.equal(r.shown, true, 'the click did not select the tab');
+    assert.equal(r.hash, r.was, 'the click changed the location hash');
+    assert.equal(r.y, r.wasY, 'the click scrolled the page');
+  });
+
+  test('the two lifecycle events fire in order and show is cancelable', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tabs-demo');
+      const t = window.Webterm.getOrCreate('tabs', el);
+      t.select('#tab-cpu');
+      const log = [];
+      const types = ['wt:tabs:show', 'wt:tabs:shown'];
+      const handler = (e) => log.push(`${e.type}:${e.detail.panel.id}`);
+      for (const ty of types) el.addEventListener(ty, handler);
+      t.select('#tab-mem');
+      for (const ty of types) el.removeEventListener(ty, handler);
+
+      const block = (e) => e.preventDefault();
+      el.addEventListener('wt:tabs:show', block);
+      t.select('#tab-net');
+      const blocked = document.querySelector('#tab-net').hidden;
+      el.removeEventListener('wt:tabs:show', block);
+      t.select('#tab-cpu');
+      return { log, blocked };
+    });
+    assert.deepEqual(r.log, ['wt:tabs:show:tab-mem', 'wt:tabs:shown:tab-mem']);
+    assert.equal(r.blocked, true, 'a prevented show selected the tab anyway');
+  });
+
+  // A switch is a repaint, not a transition: nothing is scheduled on the clock
+  // and the panel is there in the same frame.
+  test('a switch is immediate and schedules nothing', async () => {
+    const r = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const t = window.Webterm.getOrCreate('tabs', document.querySelector('#tabs-demo'));
+      t.select('#tab-cpu');
+      const before = clock.finiteJobs;
+      t.select('#tab-net');
+      const out = { before, after: clock.finiteJobs, shown: !document.querySelector('#tab-net').hidden };
+      t.select('#tab-cpu');
+      return out;
+    });
+    assert.equal(r.shown, true);
+    assert.equal(r.after, r.before, 'a tab switch scheduled an animation');
+  });
+
+  test('data-wt-fit="content" opts out of the lock', async () => {
+    const r = await page.evaluate(() => {
+      const el = document.querySelector('#tabs-fit');
+      const t = window.Webterm.getOrCreate('tabs', el);
+      const panels = el.querySelector(':scope > .tabs-panels');
+      t.select('#fit-short');
+      const short = panels.getBoundingClientRect().height;
+      t.select('#fit-long');
+      const long = panels.getBoundingClientRect().height;
+      t.select('#fit-short');
+      return { short, long, cls: panels.className, rows: panels.style.getPropertyValue('--rows') };
+    });
+    assert.ok(r.long > r.short, 'the opted-out region did not follow its content');
+    assert.equal(r.rows, '', `--rows was written anyway: ${r.rows}`);
+    assert.ok(offGrid(r.short, cell.lh) < TOL, `the short panel region is ${r.short}px`);
+    assert.ok(offGrid(r.long, cell.lh) < TOL, `the long panel region is ${r.long}px`);
+  });
+
+  // Text rewraps when the window changes, so the row count the lock was
+  // measured from is no longer the row count. A lock that is never re-measured
+  // clips the panel it was supposed to fit.
+  test('the lock is re-measured when the window changes', async () => {
+    const wide = await page.evaluate(() => {
+      const t = window.Webterm.getOrCreate('tabs', document.querySelector('#tabs-demo'));
+      t.select('#tab-net');
+      return Number(document.querySelector('#tabs-demo > .tabs-panels').style.getPropertyValue('--rows'));
+    });
+    await page.setViewportSize({ width: 420, height: 1024 });
+    await page.waitForTimeout(100);
+    const narrow = await page.evaluate(() => {
+      const panels = document.querySelector('#tabs-demo > .tabs-panels');
+      const panel = document.querySelector('#tab-net');
+      return {
+        rows: Number(panels.style.getPropertyValue('--rows')),
+        region: panels.getBoundingClientRect().height,
+        panel: panel.getBoundingClientRect().height,
+      };
+    });
+    await page.setViewportSize({ width: 1280, height: 1024 });
+    await page.waitForTimeout(100);
+    const back = await page.evaluate(() => {
+      const t = window.Webterm.getOrCreate('tabs', document.querySelector('#tabs-demo'));
+      t.select('#tab-cpu');
+      return Number(document.querySelector('#tabs-demo > .tabs-panels').style.getPropertyValue('--rows'));
+    });
+    assert.ok(Number.isInteger(narrow.rows), `--rows is ${narrow.rows} at 420px`);
+    assert.ok(narrow.rows > wide, `the lock stayed at ${wide} rows while the panel rewrapped to ${narrow.rows}`);
+    assert.ok(narrow.region >= narrow.panel - TOL, `the panel is ${narrow.panel}px in a ${narrow.region}px region`);
+    assert.equal(back, wide, 'the lock did not come back when the window did');
+  });
+
+  // §11.1: every panel readable, every link working, nothing hidden.
+  test('every panel is readable with scripts disabled', async () => {
+    const ctx = await browser.newContext({
+      deviceScaleFactor: 1,
+      viewport: { width: 1280, height: 1024 },
+      javaScriptEnabled: false,
+    });
+    const quiet = await ctx.newPage();
+    await quiet.goto(`${server.origin}/test/behavior.html`);
+    await quiet.waitForTimeout(200);
+    const c = await cellSize(quiet);
+    const r = await quiet.evaluate((list) => {
+      const panels = list.map((id) => document.querySelector(id));
+      return {
+        hidden: panels.filter((p) => p.hidden || getComputedStyle(p).display === 'none').map((p) => p.id),
+        heights: panels.map((p) => p.getBoundingClientRect().height),
+        hrefs: [...document.querySelectorAll('#tabs-demo .tabs-list > *')].map((a) => a.getAttribute('href')),
+        region: document.querySelector('#tabs-demo > .tabs-panels').getBoundingClientRect().height,
+      };
+    }, ids);
+    assert.deepEqual(r.hidden, [], 'a panel was hidden with no script to show it again');
+    assert.deepEqual(r.hrefs, ids, 'the strip must be in-page links without the module');
+    const off = r.heights.filter((h) => offGrid(h, c.lh) >= TOL);
+    assert.deepEqual(off, [], 'a static panel is not a whole number of rows');
+    assert.ok(offGrid(r.region, c.lh) < TOL, `the static panel region is ${r.region}px`);
+    await ctx.close();
+  });
+});
+
 describe('no-script', () => {
   // §11.1: the CSS is a whole framework on its own. The static page has to
   // render and stay on the grid with the module never loaded.
@@ -2722,7 +3011,7 @@ describe('no-script', () => {
     await quiet.goto(`${server.origin}/test/behavior.html`);
     await quiet.waitForTimeout(200);
     const c = await cellSize(quiet);
-    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area, .toast, .collapse, .collapse-body');
+    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area, .toast, .collapse, .collapse-body, .tabs, .tabs-panels, .tab-panel');
     assert.ok(found.length > 0, 'nothing rendered without script');
     const bad = found.filter((r) => offGrid(r.w, c.ch) >= TOL || offGrid(r.h, c.lh) >= TOL);
     assert.deepEqual(bad.map((r) => `${describeRect(r)} ${r.w}x${r.h}`), []);

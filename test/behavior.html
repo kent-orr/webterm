@@ -329,6 +329,59 @@ echo      replica  0.12  ok</pre>
     </div>
   </details>
 
+  <h2 class="mt-2">Tabs</h2>
+  <p>With no script this is a document with three sections and three links to
+  them. The module upgrades it in place — roles, roving focus, arrow keys — and
+  pins the panel region to the tallest panel in whole rows, so switching tabs
+  moves nothing below it.</p>
+
+  <div class="tabs mt-1" id="tabs-demo">
+    <div class="nav tabs-list">
+      <a href="#tab-cpu" class="active">cpu</a>
+      <a href="#tab-mem">mem</a>
+      <a href="#tab-net">net</a>
+    </div>
+    <div class="tabs-panels">
+      <section class="tab-panel" id="tab-cpu">
+        <dl class="kv">
+          <dt>load</dt><dd>0.41 0.38 0.31</dd>
+          <dt>cores</dt><dd>8</dd>
+        </dl>
+      </section>
+      <section class="tab-panel" id="tab-mem">
+        <dl class="kv">
+          <dt>used</dt><dd>6.1G</dd>
+          <dt>free</dt><dd>1.9G</dd>
+          <dt>cache</dt><dd>3.4G</dd>
+          <dt>swap</dt><dd>0B</dd>
+          <dt>pressure</dt><dd>low</dd>
+        </dl>
+      </section>
+      <section class="tab-panel" id="tab-net">
+        <p>eth0 carried 1.2 Gbit/s across the last minute with no errors, no
+        drops and no retransmits, which is a sentence long enough to rewrap when
+        the window narrows and so to change how many rows this panel needs.</p>
+      </section>
+    </div>
+  </div>
+  <p id="tabs-after">The row below the panels does not move when the tab changes.</p>
+
+  <h3 class="mt-2">Fitting the content instead</h3>
+  <p><code>data-wt-fit="content"</code> for a page that would rather have the
+  jump than the empty rows.</p>
+  <div class="tabs mt-1" id="tabs-fit" data-wt-fit="content">
+    <div class="nav tabs-list">
+      <a href="#fit-short" class="active">short</a>
+      <a href="#fit-long">long</a>
+    </div>
+    <div class="tabs-panels">
+      <section class="tab-panel" id="fit-short"><p>One row.</p></section>
+      <section class="tab-panel" id="fit-long">
+        <p>Four</p><p>rows</p><p>in</p><p>here</p>
+      </section>
+    </div>
+  </div>
+
   <div class="statusbar statusbar-fixed">
     <span>webterm</span>
     <span class="spacer"></span>
