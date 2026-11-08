@@ -114,12 +114,21 @@
   flex: 1 1 0;
 }
 
+/*
+ * A fixed strip spans the viewport, and the viewport is not a whole number of
+ * cells — so it rounds down and centers, exactly as .screen does. Stretching
+ * it with left: 0; right: 0 instead puts its right edge mid-cell at every
+ * viewport width that does not divide by the cell, which is most of them; the
+ * leftover sub-cell sliver at each end is the same one .screen leaves.
+ */
 .statusbar-fixed {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 1;
+  width: round(down, 100%, 1ch);
+  margin-inline: auto;
+  z-index: var(--wt-z-statusbar);
 }
 
 /* A menu as a vertical list, the selected row inverse across the full width. */

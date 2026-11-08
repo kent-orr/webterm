@@ -27,4 +27,5 @@
 @import url("grid/table.css");
 @import url("grid/forms.css");
 @import url("grid/components.css");
+@import url("grid/overlay.css");
 @import url("themes/pawpaw.css") layer(webterm-default-theme);

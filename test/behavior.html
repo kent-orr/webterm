@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — behavior layer</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link id="theme" rel="stylesheet" href="">
+</head>
+<body>
+<div class="screen">
+
+  <h1>webterm behavior</h1>
+  <p class="mt-1 dim">Layer 4 (PLAN §11). The page below renders with no script;
+  the module only drives transitions between states.</p>
+
+  <div class="row mt-1">
+    <div class="col-24">
+      <label class="form-label" for="font">font</label>
+      <div class="select select-24">
+        <select id="font">
+          <option value="font-jetbrains-mono">JetBrains Mono</option>
+          <option value="font-iosevka">Iosevka</option>
+          <option value="font-dejavu-sans-mono">DejaVu Sans Mono</option>
+        </select>
+      </div>
+    </div>
+    <div class="col-24">
+      <label class="form-label" for="theme-pick">theme</label>
+      <div class="select select-24">
+        <select id="theme-pick">
+          <option value="">pawpaw (default)</option>
+          <option value="tomorrow-night">tomorrow-night</option>
+          <option value="solarized-dark">solarized-dark</option>
+          <option value="solarized-light">solarized-light</option>
+          <option value="gruvbox-dark">gruvbox-dark</option>
+          <option value="dracula">dracula</option>
+          <option value="nord">nord</option>
+          <option value="green-phosphor">green-phosphor</option>
+          <option value="amber-phosphor">amber-phosphor</option>
+        </select>
+      </div>
+    </div>
+    <div class="col">
+      <label class="form-label" for="motion">motion</label>
+      <div class="select select-16">
+        <select id="motion">
+          <option value="on">on</option>
+          <option value="off">off</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="mt-2">Foundation</h2>
+
+  <div class="box box-tight mt-1">
+    <span class="box-edge"></span>
+    <span class="box-title">readout</span>
+    <dl class="kv">
+      <dt>cell</dt><dd id="m-cell">—</dd>
+      <dt>row</dt><dd id="m-row">—</dd>
+      <dt>columns</dt><dd id="m-cols">—</dd>
+      <dt>tick</dt><dd id="m-tick">—</dd>
+      <dt>motion</dt><dd id="m-motion">—</dd>
+      <dt>live jobs</dt><dd id="m-jobs">—</dd>
+    </dl>
+  </div>
+
+  <h3 class="mt-2">createBox</h3>
+  <p>Boxes the behavior layer builds face the same border checks as hand-written
+  ones: four corners, continuous runs, every edge on a cell.</p>
+  <div id="built" class="stack mt-1"></div>
+  <p class="mt-1"><button class="btn" id="build">build</button></p>
+
+  <h3 class="mt-2">Shade</h3>
+  <p>A dim overlay is a wrapping run of block-shade glyphs painted in
+  <code>--bg</code>, so it covers what is behind it without naming a color
+  (PLAN §11.3).</p>
+  <div class="box box-fill mt-1" id="shade-host">
+    <span class="box-edge"></span>
+    <div id="shade-area" style="position: relative">
+      <p>alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo
+      lima mike november oscar papa quebec romeo sierra tango uniform victor
+      whiskey xray yankee zulu alpha bravo charlie delta echo foxtrot golf</p>
+      <span class="shade" id="demo-shade" aria-hidden="true"></span>
+    </div>
+  </div>
+  <p class="mt-1">
+    <button class="btn" id="shade-light">light</button>
+    <button class="btn" id="shade-medium">medium</button>
+    <button class="btn" id="shade-heavy">heavy</button>
+    <button class="btn" id="shade-none">none</button>
+  </p>
+
+  <h3 class="mt-2">Scroll lock</h3>
+  <p>Locking page scroll must not change the column count: without a stable
+  scrollbar gutter the screen rounds up a column and the whole page reflows
+  behind the dialog.</p>
+  <p class="mt-1">
+    <button class="btn" id="lock">lock</button>
+    <button class="btn" id="unlock">unlock</button>
+    <span>columns: <span id="m-lockcols">—</span></span>
+  </p>
+
+  <div class="statusbar statusbar-fixed">
+    <span>webterm</span>
+    <span class="spacer"></span>
+    <span id="s-font">—</span>
+    <span id="s-geom">—</span>
+  </div>
+
+</div>
+
+<script type="module">
+import * as Webterm from '../src/behavior/webterm.js';
+
+const $ = (s) => document.querySelector(s);
+
+function readout() {
+  const { ch, lh } = Webterm.cells.cell();
+  $('#m-cell').textContent = ch.toFixed(3) + 'px';
+  $('#m-row').textContent = lh.toFixed(0) + 'px';
+  $('#m-cols').textContent = Webterm.cells.screenCols();
+  $('#m-tick').textContent = Webterm.motion.tickMs() + 'ms';
+  $('#m-motion').textContent = Webterm.motion.motionEnabled() ? 'on' : 'off';
+  $('#m-jobs').textContent = Webterm.motion.clock.jobs;
+  $('#s-font').textContent = getComputedStyle(document.documentElement)
+    .fontFamily.split(',')[0].replace(/"/g, '');
+  $('#s-geom').textContent = Webterm.cells.screenCols() + '×' +
+    Webterm.cells.floorRows(window.innerHeight);
+}
+
+$('#font').addEventListener('change', async (e) => {
+  document.documentElement.className = e.target.value;
+  await document.fonts.ready;
+  Webterm.cells.refresh();
+  readout();
+});
+
+$('#theme-pick').addEventListener('change', (e) => {
+  $('#theme').href = e.target.value ? '../src/themes/' + e.target.value + '.css' : '';
+});
+
+$('#motion').addEventListener('change', (e) => {
+  if (e.target.value === 'off') document.documentElement.dataset.wtMotion = 'off';
+  else delete document.documentElement.dataset.wtMotion;
+  readout();
+});
+
+let builtCount = 0;
+function build() {
+  builtCount += 1;
+  const box = Webterm.createBox({
+    classes: ['box-round'],
+    title: 'built ' + builtCount,
+    html: '<p>Assembled by createBox, edge span and all.</p>',
+  });
+  $('#built').append(box);
+}
+$('#build').addEventListener('click', build);
+build();
+
+const shade = $('#demo-shade');
+$('#shade-light').addEventListener('click', () => { shade.className = 'shade shade-light'; });
+$('#shade-medium').addEventListener('click', () => { shade.className = 'shade'; });
+$('#shade-heavy').addEventListener('click', () => { shade.className = 'shade shade-heavy'; });
+$('#shade-none').addEventListener('click', () => { shade.className = 'shade shade-off'; });
+
+$('#lock').addEventListener('click', () => {
+  Webterm.lockScroll();
+  $('#m-lockcols').textContent = Webterm.cells.screenCols();
+});
+$('#unlock').addEventListener('click', () => {
+  Webterm.unlockScroll();
+  $('#m-lockcols').textContent = Webterm.cells.screenCols();
+});
+
+addEventListener('resize', () => { Webterm.cells.refresh(); readout(); });
+
+// The specs wait on this, not on load: fonts have to be in before any cell
+// measurement means anything.
+await document.fonts.ready;
+Webterm.cells.refresh();
+readout();
+// window.Webterm is set by the module itself, not here: the specs inspect the
+// surface a page actually gets from a <script type="module">.
+document.documentElement.dataset.ready = '1';
+</script>
+</body>
+</html>

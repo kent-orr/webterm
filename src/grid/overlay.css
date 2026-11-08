@@ -1,0 +1,146 @@
+/*
+ * webterm overlays (PLAN §11.3).
+ *
+ * Everything in this file exists because something has to float above the
+ * page: a toast stack, a dialog, the dim behind a dialog. Three things that
+ * are ordinary elsewhere are not ordinary on a character grid.
+ *
+ *   1. Stacking needs one declared order, not a z-index per component picked
+ *      by whoever wrote it last. The scale is below, and .statusbar-fixed
+ *      reads from it too.
+ *
+ *   2. The viewport is not a whole number of rows. An overlay that is
+ *      `inset: 0` therefore cannot center a child on the grid — the leftover
+ *      half row goes somewhere. So an overlay rounds its own height down to a
+ *      whole number of rows and lets the remainder sit below it, which is
+ *      exactly what a terminal does with a window that is not an exact
+ *      multiple of the cell height.
+ *
+ *   3. A dim overlay cannot name a color. The grid layer is color-free so a
+ *      theme can replace the palette with one <link> (PLAN §5), and
+ *      grid.spec.js enforces it, so the usual translucent black is
+ *      unavailable. The terminal answer is better anyway: cover the region
+ *      with block-shade glyphs painted in --bg. At 25%, 50% and 75% ink the
+ *      page behind shows through in the gaps, dimmed and dithered rather than
+ *      tinted — which is how a 16-color terminal shades a region.
+ *
+ * This file also holds the two classes the behavior layer needs to exist:
+ * .wt-probe, the measuring stick lib/cells.js reads, and .wt-locked, the
+ * scroll lock. Keeping them here is what lets layer 4 write no styles at all.
+ */
+
+:root {
+  /* The stacking order, lowest first. A component never invents its own. */
+  --wt-z-content: 0;
+  --wt-z-statusbar: 10;
+  --wt-z-toast: 20;
+  --wt-z-backdrop: 30;
+  --wt-z-modal: 31;
+
+  /* Where a dialog's top edge sits when nothing has measured it (PLAN §11.3). */
+  --wt-dialog-top: 4lh;
+}
+
+/* A fixed region, a whole number of rows tall, for anything that floats. */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: round(down, 100%, 1ch);
+  margin-inline: auto;
+  height: round(down, 100dvh, 1lh);
+  z-index: var(--wt-z-backdrop);
+}
+
+/*
+ * A shade covers its positioned parent with block glyphs in --bg. The run is
+ * one long line that wraps: `pre-wrap` keeps every cell, and the break rules
+ * are what allow a wrap at all, since block-drawing glyphs carry no break
+ * opportunity of their own. Both properties are set because `word-break` is
+ * the reliable one in Chromium and `overflow-wrap: anywhere` is the one that
+ * is correct per spec.
+ */
+.shade,
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  color: var(--bg);
+  font-weight: 400;
+  text-decoration: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.shade::before,
+.backdrop::before {
+  content: var(--wt-fill-med) var(--wt-fill-med);
+}
+
+.shade-light::before { content: var(--wt-fill-light) var(--wt-fill-light); }
+.shade-heavy::before { content: var(--wt-fill-dark) var(--wt-fill-dark); }
+
+/* Off rather than removed, so a page can toggle one without touching the DOM. */
+.shade-off { display: none; }
+
+/*
+ * The dim behind a dialog: an overlay and a shade at once. Eight copies of the
+ * fill rather than two, because this one covers a viewport (PLAN §11.3).
+ */
+.backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: auto;
+  width: round(down, 100%, 1ch);
+  margin-inline: auto;
+  height: round(down, 100dvh, 1lh);
+  z-index: var(--wt-z-backdrop);
+}
+
+.backdrop::before {
+  content:
+    var(--wt-fill-med) var(--wt-fill-med) var(--wt-fill-med) var(--wt-fill-med)
+    var(--wt-fill-med) var(--wt-fill-med) var(--wt-fill-med) var(--wt-fill-med);
+}
+
+/*
+ * The flat alternative, for a page with enough behind the dialog that the
+ * dither is noisy. Still no literal color: --bg at an opacity.
+ */
+.backdrop-plain::before { content: none; }
+
+.backdrop-plain {
+  background: var(--bg);
+  opacity: var(--wt-backdrop-opacity, 0.8);
+}
+
+/*
+ * Scroll lock. `overflow: hidden` and not `clip`: hidden keeps html a scroll
+ * container, so the stable gutter reset.css reserves stays reserved and the
+ * column count does not move while a dialog is open (PLAN §11.3).
+ */
+.wt-locked {
+  overflow: hidden;
+}
+
+/*
+ * The measuring stick. lib/cells.js reads one pixel measurement for the whole
+ * behavior layer, and it reads it here: 100 cells rather than one, because a
+ * single cell hides the rounding that 100 of them accumulate. Appended,
+ * measured and removed in the same frame, so it never paints.
+ */
+.wt-probe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100ch;
+  height: 100lh;
+  visibility: hidden;
+  pointer-events: none;
+}

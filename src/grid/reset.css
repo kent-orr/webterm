@@ -18,6 +18,16 @@
 html {
   background: var(--bg);
   color: var(--fg);
+
+  /*
+   * The scrollbar gutter is always reserved, whether the page scrolls or not.
+   * .screen rounds its width down to a whole column, so a scrollbar that comes
+   * and goes changes the column count and reflows the entire page — which is
+   * what a modal that locks scroll would otherwise do behind the dialog
+   * (PLAN §11.3). `overflow: hidden` keeps html a scroll container, so the
+   * gutter stays reserved while the lock is on.
+   */
+  scrollbar-gutter: stable;
 }
 
 body {

@@ -28,9 +28,33 @@
   --wt-run-ascii: "----------------------------------------------------------------";
   --wt-run-block: "████████████████████████████████████████████████████████████████";
   --wt-run-shade: "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░";
+  --wt-run-shade-med: "▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒";
+  --wt-run-shade-dark: "▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓";
   --wt-run-eq: "================================================================";
   --wt-col-light: "│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A│\A";
   --wt-col-double: "║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A║\A";
   --wt-col-heavy: "┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A┃\A";
   --wt-col-ascii: "|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A";
+
+  /*
+   * A 2-D fill: one run long enough that, with `white-space: pre-wrap` and a
+   * break-anywhere rule, it wraps to fill a rectangle row by row. Every glyph
+   * is one cell and every line is 1lh, so the fill tracks the grid exactly and
+   * costs one text node instead of one node per cell.
+   *
+   * This is how a dim overlay is built (overlay.css): the glyphs are painted
+   * in --bg, so they *cover* what is behind them rather than inking over it,
+   * which is how a 16-color terminal dims a region and is also the only way to
+   * do it here — the grid layer may not name a color, so rgba() is out.
+   *
+   * Each fill is 8 × 8 × 64 = 4096 cells, and a user doubles or octuples it in
+   * `content` for a larger area. A region bigger than the run leaves its tail
+   * uncovered, the same trade the border runs make.
+   */
+  --wt-fill-light-x8: var(--wt-run-shade) var(--wt-run-shade) var(--wt-run-shade) var(--wt-run-shade) var(--wt-run-shade) var(--wt-run-shade) var(--wt-run-shade) var(--wt-run-shade);
+  --wt-fill-light: var(--wt-fill-light-x8) var(--wt-fill-light-x8) var(--wt-fill-light-x8) var(--wt-fill-light-x8) var(--wt-fill-light-x8) var(--wt-fill-light-x8) var(--wt-fill-light-x8) var(--wt-fill-light-x8);
+  --wt-fill-med-x8: var(--wt-run-shade-med) var(--wt-run-shade-med) var(--wt-run-shade-med) var(--wt-run-shade-med) var(--wt-run-shade-med) var(--wt-run-shade-med) var(--wt-run-shade-med) var(--wt-run-shade-med);
+  --wt-fill-med: var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8) var(--wt-fill-med-x8);
+  --wt-fill-dark-x8: var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark) var(--wt-run-shade-dark);
+  --wt-fill-dark: var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8) var(--wt-fill-dark-x8);
 }

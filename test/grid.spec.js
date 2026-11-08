@@ -10,21 +10,19 @@
 //
 // (2) is checked in pixels, because the border technique (four runs clipped to
 // disjoint strips, each anchored at the end that owns a corner — see box.css)
-// fails by dropping a corner or a tail, which geometry alone cannot see.
+// fails by dropping a corner or a tail, which geometry alone cannot see. The
+// sweep itself lives in lib/borders.js, shared with behavior.spec.js so a box
+// the JS builds faces the same check as one typed into the page.
 const { describe, test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
-const { PNG } = require('pngjs');
 const { startServer } = require('./lib/server');
+const { TOL, cellSize, rects, offGrid, describeRect } = require('./lib/grid');
+const borders = require('./lib/borders');
 
-const TOL = 0.5; // PLAN §10
 const SRC = path.resolve(__dirname, '..', 'src');
-
-// Luminance range within a single pixel line; a blank cell over any uniform
-// background is flat, an inked one is not.
-const INK = 20;
 
 let server;
 let browser;
@@ -41,27 +39,6 @@ function cssFiles(dir) {
     .map((f) => [path.join(path.basename(dir), f), fs.readFileSync(path.join(dir, f), 'utf8')]);
 }
 
-async function rects(selector) {
-  return page.$$eval(selector, (els) => els.map((el) => {
-    const r = el.getBoundingClientRect();
-    return {
-      tag: el.tagName.toLowerCase(),
-      cls: el.className && String(el.className).slice(0, 40),
-      x: r.x, y: r.y, w: r.width, h: r.height,
-      fixed: getComputedStyle(el).position === 'fixed',
-    };
-  }));
-}
-
-function offGrid(value, unit) {
-  const m = ((value % unit) + unit) % unit;
-  return Math.min(m, unit - m);
-}
-
-function describeRect(r) {
-  return `${r.tag}${r.cls ? '.' + r.cls.trim().split(/\s+/).join('.') : ''}`;
-}
-
 before(async () => {
   server = await startServer();
   browser = await chromium.launch();
@@ -72,14 +49,7 @@ before(async () => {
   await page.goto(`${server.origin}/test/components.html`);
   await page.waitForSelector('html[data-ready="1"]');
   assert.deepEqual(errors, [], 'page script errors');
-  cell = await page.evaluate(() => {
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:absolute;visibility:hidden;width:100ch;height:100lh';
-    document.body.append(probe);
-    const r = probe.getBoundingClientRect();
-    probe.remove();
-    return { ch: r.width / 100, lh: r.height / 100 };
-  });
+  cell = await cellSize(page);
 });
 
 after(async () => {
@@ -122,7 +92,7 @@ describe('source', () => {
 
 describe('cell grid', () => {
   test('the screen is a whole number of columns', async () => {
-    const [screen] = await rects('.screen');
+    const [screen] = await rects(page, '.screen');
     assert.ok(offGrid(screen.w, cell.ch) < TOL, `screen width ${screen.w} is ${screen.w / cell.ch} ch`);
   });
 
@@ -140,22 +110,22 @@ describe('cell grid', () => {
 
   for (const sel of SELECTORS) {
     test(`${sel}: width is a whole number of ch`, async () => {
-      const found = await rects(sel);
+      const found = await rects(page, sel);
       assert.ok(found.length > 0, `no ${sel} on the page`);
       const bad = found.filter((r) => offGrid(r.w, cell.ch) >= TOL);
       assert.deepEqual(bad.map((r) => `${describeRect(r)} w=${r.w} (${(r.w / cell.ch).toFixed(3)}ch)`), []);
     });
 
     test(`${sel}: height is a whole number of lh`, async () => {
-      const bad = (await rects(sel)).filter((r) => offGrid(r.h, cell.lh) >= TOL);
+      const bad = (await rects(page, sel)).filter((r) => offGrid(r.h, cell.lh) >= TOL);
       assert.deepEqual(bad.map((r) => `${describeRect(r)} h=${r.h} (${(r.h / cell.lh).toFixed(3)}lh)`), []);
     });
 
     // Fixed elements are positioned against the viewport, whose height is not
     // a whole number of rows, so only their size is on the grid.
     test(`${sel}: starts on a cell boundary`, async () => {
-      const [screen] = await rects('.screen');
-      const bad = (await rects(sel)).filter(
+      const [screen] = await rects(page, '.screen');
+      const bad = (await rects(page, sel)).filter(
         (r) => !r.fixed && (offGrid(r.x - screen.x, cell.ch) >= TOL || offGrid(r.y - screen.y, cell.lh) >= TOL),
       );
       assert.deepEqual(bad.map((r) => `${describeRect(r)} at +${(r.x - screen.x).toFixed(2)},+${(r.y - screen.y).toFixed(2)}`), []);
@@ -197,112 +167,26 @@ describe('box borders', () => {
     // behind it. Its own geometry is checked in the cell grid suite.
     await page.addStyleTag({ id: 'no-fixed', content: '.statusbar-fixed { display: none !important; }' });
     const shot = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
-    png = PNG.sync.read(shot);
-    boxes = await page.$$eval('.box', (els) => els.map((el) => {
-      const r = el.getBoundingClientRect();
-      // A title is meant to interrupt the top run: ┌─ Title ─────┐. Its span
-      // is excluded from the continuity check.
-      const t = el.querySelector(':scope > .box-title');
-      const tr = t && t.getBoundingClientRect();
-      return {
-        cls: String(el.className),
-        x: r.x + window.scrollX, y: r.y + window.scrollY, w: r.width, h: r.height,
-        title: tr && { x0: tr.x + window.scrollX, x1: tr.x + tr.width + window.scrollX },
-      };
-    }));
+    png = borders.readShot(shot);
+    boxes = await borders.boxGeometry(page, '.box');
   });
 
   after(async () => {
     await page.evaluate(() => document.getElementById('no-fixed')?.remove());
   });
 
-  // Luminance range down a pixel column (axis 'y') or across a row (axis 'x').
-  function range(x0, y0, x1, y1) {
-    let lo = 255;
-    let hi = 0;
-    for (let y = y0; y < y1; y++) {
-      for (let x = x0; x < x1; x++) {
-        if (x < 0 || y < 0 || x >= png.width || y >= png.height) continue;
-        const i = (y * png.width + x) * 4;
-        const l = 0.299 * png.data[i] + 0.587 * png.data[i + 1] + 0.114 * png.data[i + 2];
-        if (l < lo) lo = l;
-        if (l > hi) hi = l;
-      }
-    }
-    return hi - lo;
-  }
-
   test('every box has all four corner glyphs', () => {
-    const ch = cell.ch;
-    const lh = cell.lh;
-    const bad = [];
-    for (const b of boxes) {
-      const corners = {
-        tl: [b.x, b.y],
-        tr: [b.x + b.w - ch, b.y],
-        bl: [b.x, b.y + b.h - lh],
-        br: [b.x + b.w - ch, b.y + b.h - lh],
-      };
-      for (const [name, [cx, cy]] of Object.entries(corners)) {
-        const r = range(Math.ceil(cx), Math.ceil(cy), Math.floor(cx + ch), Math.floor(cy + lh));
-        if (r < INK) bad.push(`${b.cls} ${name} (range ${r.toFixed(0)})`);
-      }
-    }
-    assert.deepEqual(bad, []);
+    assert.deepEqual(borders.missingCorners(png, boxes, cell), []);
   });
 
-  // Box-drawing glyphs run edge to edge of their cell, so a run of them is one
-  // unbroken line. ASCII - and | do not touch their cell edges, which is why
-  // box-drawing exists; .box-ascii is checked cell by cell instead.
   test('every box-drawing edge is continuous between its corners', () => {
-    const ch = cell.ch;
-    const lh = cell.lh;
-    const bad = [];
-    for (const b of boxes.filter((x) => !/\bbox-ascii\b/.test(x.cls))) {
-      // Horizontal edges: every pixel column between the corner cells.
-      for (const [name, ey] of [['top', b.y], ['bottom', b.y + b.h - lh]]) {
-        let gaps = 0;
-        for (let x = Math.ceil(b.x + ch); x < Math.floor(b.x + b.w - ch); x++) {
-          if (name === 'top' && b.title && x >= Math.floor(b.title.x0) - 1 && x < Math.ceil(b.title.x1) + 1) continue;
-          if (range(x, Math.ceil(ey), x + 1, Math.floor(ey + lh)) < INK) gaps++;
-        }
-        if (gaps) bad.push(`${b.cls} ${name}: ${gaps} blank px columns`);
-      }
-      // Vertical edges: every pixel row between the corner cells.
-      for (const [name, ex] of [['left', b.x], ['right', b.x + b.w - ch]]) {
-        let gaps = 0;
-        for (let y = Math.ceil(b.y + lh); y < Math.floor(b.y + b.h - lh); y++) {
-          if (range(Math.ceil(ex), y, Math.floor(ex + ch), y + 1) < INK) gaps++;
-        }
-        if (gaps) bad.push(`${b.cls} ${name}: ${gaps} blank px rows`);
-      }
-    }
-    assert.deepEqual(bad, []);
+    const drawn = boxes.filter((b) => !/\bbox-ascii\b/.test(b.cls));
+    assert.deepEqual(borders.brokenEdges(png, drawn, cell), []);
   });
 
   test('an ascii box has a glyph in every border cell', () => {
-    const ch = cell.ch;
-    const lh = cell.lh;
     const ascii = boxes.filter((b) => /\bbox-ascii\b/.test(b.cls));
     assert.ok(ascii.length > 0, 'no .box-ascii on the page');
-    const bad = [];
-    for (const b of ascii) {
-      const cols = Math.round(b.w / ch);
-      const rows = Math.round(b.h / lh);
-      for (let c = 0; c < cols; c++) {
-        for (const [name, row] of [['top', 0], ['bottom', rows - 1]]) {
-          if (name === 'top' && b.title && b.x + c * ch >= b.title.x0 - ch && b.x + c * ch < b.title.x1) continue;
-          const r = range(Math.ceil(b.x + c * ch), Math.ceil(b.y + row * lh), Math.floor(b.x + (c + 1) * ch), Math.floor(b.y + (row + 1) * lh));
-          if (r < INK) bad.push(`${b.cls} ${name} cell ${c}`);
-        }
-      }
-      for (let rw = 0; rw < rows; rw++) {
-        for (const [name, col] of [['left', 0], ['right', cols - 1]]) {
-          const r = range(Math.ceil(b.x + col * ch), Math.ceil(b.y + rw * lh), Math.floor(b.x + (col + 1) * ch), Math.floor(b.y + (rw + 1) * lh));
-          if (r < INK) bad.push(`${b.cls} ${name} cell ${rw}`);
-        }
-      }
-    }
-    assert.deepEqual(bad, []);
+    assert.deepEqual(borders.brokenAsciiCells(png, ascii, cell), []);
   });
 });

@@ -36,6 +36,15 @@
   letter-spacing: 0;
   word-spacing: 0;
   tab-size: 4;
+
+  /*
+   * The one timing knob (PLAN §11.2 rule 5). A terminal does not tween: it
+   * repaints a cell. Every animation in the behavior layer advances by whole
+   * cells or whole rows on this tick, and CSS animations step on it too, so
+   * the whole page moves on one clock instead of each component inventing a
+   * duration. 60ms is about 16 cells a second.
+   */
+  --wt-tick: 60ms;
 }
 
 /* 16px -> 20px rows. Calibrated: JetBrains Mono 2.304. */
