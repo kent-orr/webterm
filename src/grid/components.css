@@ -301,3 +301,92 @@
 [data-wt-motion="off"] .progress-indeterminate > .bar {
   animation: none;
 }
+
+/*
+ * ------------------------------------------------------------ placeholders
+ *
+ * PLAN §11.5. A skeleton on a character grid can be exact: the placeholder
+ * holds precisely the cells the real content will hold, so the value settles
+ * into them with no layout shift at any frame.
+ *
+ * With no script, .ph is just its text and .ph-area is a flat ░ skeleton —
+ * which is the ordinary static form, and the reason this degrades rather than
+ * disappears (§11.1).
+ */
+
+.ph {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  white-space: pre;
+}
+
+/*
+ * Added by the behavior layer once it has written --cells. The width is then
+ * the contract: a resolve onto longer text is clipped rather than allowed to
+ * move the page, which is the whole promise being kept.
+ */
+.ph-fixed {
+  width: calc(var(--cells) * 1ch);
+  overflow: hidden;
+}
+
+/*
+ * The real text, out of sight but in the accessibility tree. A screen reader
+ * announces the value; it never hears the noise, which is in .ph-mask with
+ * aria-hidden. clip-path rather than display: none, because a hidden element
+ * is dropped from the tree as well as from the page.
+ */
+.ph-real {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1ch;
+  height: 1lh;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: pre;
+}
+
+.ph > .ph-mask {
+  display: block;
+  white-space: pre;
+}
+
+.ph-failed {
+  color: var(--error);
+}
+
+/* A rectangle of noise that erodes to reveal whatever is behind it. */
+.ph-area {
+  position: relative;
+  display: block;
+  width: calc(var(--cells, 40) * 1ch);
+  height: calc(var(--rows, 6) * 1lh);
+  overflow: hidden;
+}
+
+.ph-area > .ph-mask {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--muted);
+  background: var(--bg);
+  user-select: none;
+  pointer-events: none;
+}
+
+/*
+ * The static skeleton: a flat shade fill, painted only while the mask holds no
+ * text. Once the behavior layer writes noise into it the :empty match stops
+ * and the pseudo-element goes with it, so one element covers both the
+ * script-free and the animated case.
+ */
+.ph-area > .ph-mask:empty::before {
+  content: var(--wt-fill-light) var(--wt-fill-light);
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}

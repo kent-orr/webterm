@@ -628,11 +628,24 @@ temptation and is excluded by rule 7: it is double-width, so it would break
 the grid. The spec measures every character in every shipped charset against
 `1ch`, which makes that a test failure rather than a visual regression.
 
-**`.ph-area` — graphic dissolve.** A `--cells` × `--rows` rectangle filled
-with random `░▒▓█` noise that erodes cell by cell to reveal the real content
-underneath: a table, a chart, an ASCII graphic. Same scheduler, same order
-options, two dimensions. Its static no-JS form is a flat `░` fill, which is
-the conventional skeleton.
+**`.ph-area` — the same settle in two dimensions.** A `--cells` × `--rows`
+rectangle of noise over content that is already on the grid: a `<pre>` table,
+an ascii plot, a log. Same scheduler, same order options, one more axis.
+
+The first attempt had it *erode* — a settled cell going blank to let the
+content show through — and that is wrong for a reason worth recording. The
+mask has to be opaque, or the noise and the text behind it overlap into mush;
+and an opaque mask eroding to a blank reveals the background, not the content.
+So an area settles exactly as text does: each cell takes the character that
+belongs to it. That is only possible because the content is itself on cells,
+which on this framework it is — and it means one code path rather than two.
+Content that is not text on the grid is out of scope.
+
+Whitespace never scrambles, in both shapes, which matters more here: the gaps
+are the table’s columns, so the layout is there from the first frame and the
+values arrive into it. The static no-JS form is a flat `░` fill, the
+conventional skeleton, painted by `.ph-mask:empty::before` so that one element
+covers both the script-free and the animated case.
 
 **States**, which is what makes this useful rather than decorative:
 `Webterm.ph(el).hold()` scrambles indefinitely while a fetch is in flight,

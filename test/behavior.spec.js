@@ -262,6 +262,18 @@ describe('cells', () => {
 });
 
 describe('motion', () => {
+  // The page mounts one placeholder that resolves on load and one that holds
+  // indefinitely, which is a real state rather than a leak. Let the first
+  // finish, and count only jobs that would end on their own.
+  before(async () => {
+    await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      clock.pause();
+      clock.drain();
+      clock.resume();
+    });
+  });
+
   test('the tick comes from --wt-tick', async () => {
     const result = await page.evaluate(() => ({
       tick: window.Webterm.motion.tickMs(),
@@ -287,7 +299,7 @@ describe('motion', () => {
       const after = ticks.slice();
       h.cancel();
       clock.resume();
-      return { beforeStep, after, done, jobs: clock.jobs };
+      return { beforeStep, after, done, jobs: clock.finiteJobs };
     });
     assert.equal(result.beforeStep, 0, 'a paused clock ticked on its own');
     assert.deepEqual(result.after, [0, 1, 2, 3]);
@@ -303,7 +315,7 @@ describe('motion', () => {
       let done = 0;
       animate({ ticks: 3, onTick: (i) => ticks.push(i), onDone: () => { done += 1; } });
       clock.step(10);
-      const out = { ticks: ticks.slice(), done, jobs: clock.jobs };
+      const out = { ticks: ticks.slice(), done, jobs: clock.finiteJobs };
       clock.resume();
       return out;
     });
@@ -322,7 +334,7 @@ describe('motion', () => {
       a.finish();
       const b = animate({ ticks: 100, onTick: () => {}, onDone: () => { cancelled += 1; } });
       b.cancel();
-      const out = { finished, cancelled, jobs: clock.jobs };
+      const out = { finished, cancelled, jobs: clock.finiteJobs };
       clock.resume();
       return out;
     });
@@ -341,7 +353,7 @@ describe('motion', () => {
       const ticks = [];
       let done = 0;
       animate({ ticks: 20, onTick: (i) => ticks.push(i), onDone: () => { done += 1; } });
-      const out = { enabled, ticks: ticks.length, done, jobs: clock.jobs };
+      const out = { enabled, ticks: ticks.length, done, jobs: clock.finiteJobs };
       delete document.documentElement.dataset.wtMotion;
       return out;
     });
@@ -357,7 +369,7 @@ describe('motion', () => {
       const { clock, animate, motionEnabled } = window.Webterm.motion;
       let done = 0;
       animate({ ticks: 20, onTick: () => {}, onDone: () => { done += 1; } });
-      return { enabled: motionEnabled(), done, jobs: clock.jobs };
+      return { enabled: motionEnabled(), done, jobs: clock.finiteJobs };
     });
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     assert.equal(result.enabled, false);
@@ -980,6 +992,592 @@ describe('loading', () => {
   });
 });
 
+/* -------------------------------------------------- phase 2: placeholders */
+
+// The claim a cell grid can make and a rem-based skeleton cannot: the
+// placeholder occupies exactly the cells the real content will occupy, so the
+// text resolves out of noise with no layout shift at any frame. Everything in
+// this suite is that claim, taken apart.
+describe('charsets', () => {
+  const FONTS = ['font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
+
+  test('the charsets are exposed and non-empty', async () => {
+    const sets = await page.evaluate(() => Object.fromEntries(
+      Object.entries(window.Webterm.CHARSETS).map(([k, v]) => [k, [...v].length]),
+    ));
+    for (const name of ['alnum', 'hex', 'binary', 'symbols', 'blocks', 'mixed']) {
+      assert.ok(sets[name] >= 2, `charset ${name} has ${sets[name]} characters`);
+    }
+  });
+
+  // Same rule as the spinner frames, and for the same reason: these are the
+  // only ranges that land on a cell in all three bundled fonts. Katakana is
+  // the obvious temptation for a scramble effect and is double-width.
+  test('a charset uses only ascii and U+2500-259F', async () => {
+    const bad = await page.evaluate(() => {
+      const out = [];
+      for (const [name, chars] of Object.entries(window.Webterm.CHARSETS)) {
+        for (const c of [...chars]) {
+          const cp = c.codePointAt(0);
+          const ok = (cp >= 0x20 && cp < 0x7f) || (cp >= 0x2500 && cp <= 0x259f);
+          if (!ok) out.push(`${name}: ${c} U+${cp.toString(16).toUpperCase()}`);
+        }
+      }
+      return out;
+    });
+    assert.deepEqual(bad, []);
+  });
+
+  test('a charset has no duplicate characters', async () => {
+    const bad = await page.evaluate(() => {
+      const out = [];
+      for (const [name, chars] of Object.entries(window.Webterm.CHARSETS)) {
+        const seen = new Set();
+        for (const c of [...chars]) {
+          if (seen.has(c)) out.push(`${name}: ${c}`);
+          seen.add(c);
+        }
+      }
+      return out;
+    });
+    assert.deepEqual(bad, []);
+  });
+
+  for (const font of FONTS) {
+    test(`every charset character is exactly one cell in ${font}`, async () => {
+      const problems = await page.evaluate(async (f) => {
+        const previous = document.documentElement.className;
+        document.documentElement.className = f;
+        await document.fonts.ready;
+
+        const stick = document.createElement('div');
+        stick.className = 'wt-probe';
+        document.body.append(stick);
+        const ch = stick.getBoundingClientRect().width / 100;
+        stick.remove();
+
+        const measure = document.createElement('span');
+        measure.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+        document.body.append(measure);
+        const out = [];
+        for (const [name, chars] of Object.entries(window.Webterm.CHARSETS)) {
+          for (const c of [...chars]) {
+            measure.textContent = c.repeat(20);
+            const w = measure.getBoundingClientRect().width / 20;
+            if (Math.abs(w - ch) > 0.02) {
+              out.push(`${name}: ${c} is ${w.toFixed(3)}px in a ${ch.toFixed(3)}px cell`);
+            }
+          }
+        }
+        measure.remove();
+        document.documentElement.className = previous;
+        await document.fonts.ready;
+        return out;
+      }, font);
+      assert.deepEqual(problems, []);
+    });
+  }
+});
+
+describe('placeholder text', () => {
+  // The invariant. Width is sampled at frame 0, after every single tick, and
+  // once resolved, across every charset and every resolution order.
+  test('the cell width never changes, for any order or charset', async () => {
+    const problems = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const orders = ['ltr', 'rtl', 'random', 'center', 'ends'];
+      const charsets = Object.keys(window.Webterm.CHARSETS);
+      const host = document.querySelector('#ph-lab');
+      const out = [];
+      clock.pause();
+      for (const order of orders) {
+        for (const charset of charsets) {
+          const el = document.createElement('span');
+          el.className = 'ph';
+          el.textContent = 'alpha-7 bravo';
+          el.setAttribute('data-wt-order', order);
+          el.setAttribute('data-wt-charset', charset);
+          host.append(el);
+          const ph = window.Webterm.ph(el);
+          ph.start();
+          const widths = new Set([Math.round(el.getBoundingClientRect().width * 100)]);
+          for (let i = 0; i < 60 && ph.live; i += 1) {
+            clock.step();
+            widths.add(Math.round(el.getBoundingClientRect().width * 100));
+          }
+          widths.add(Math.round(el.getBoundingClientRect().width * 100));
+          if (widths.size !== 1) {
+            out.push(`${order}/${charset}: ${[...widths].map((w) => w / 100).join(', ')}`);
+          }
+          el.remove();
+        }
+      }
+      clock.resume();
+      return out;
+    });
+    assert.deepEqual(problems, []);
+  });
+
+  test('the width is exactly the real text in cells', async () => {
+    const result = await page.evaluate(() => {
+      const host = document.querySelector('#ph-lab');
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = 'alpha-7';
+      host.append(el);
+      window.Webterm.motion.clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.start();
+      const w = el.getBoundingClientRect().width;
+      const cells = ph.cells;
+      window.Webterm.motion.clock.drain();
+      window.Webterm.motion.clock.resume();
+      el.remove();
+      return { w, cells, len: 'alpha-7'.length };
+    });
+    assert.equal(result.cells, result.len);
+    assert.ok(Math.abs(result.w - result.len * cell.ch) < TOL, `${result.w}px for ${result.len} cells`);
+  });
+
+  test('every frame has exactly as many characters as the real text', async () => {
+    const problems = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const real = 'charlie delta echo';
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = real;
+      host.append(el);
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.start();
+      const out = [];
+      for (let i = 0; i < 80; i += 1) {
+        const shown = ph.shown;
+        if ([...shown].length !== [...real].length) {
+          out.push(`tick ${i}: ${[...shown].length} characters, expected ${[...real].length} (${JSON.stringify(shown)})`);
+        }
+        if (!ph.live) break;
+        clock.step();
+      }
+      clock.resume();
+      el.remove();
+      return out.slice(0, 5);
+    });
+    assert.deepEqual(problems, []);
+  });
+
+  test('it resolves to the real text, exactly, and leaves the DOM clean', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const real = 'alpha-7 ▓ bravo';
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = real;
+      host.append(el);
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.start();
+      const steps = clock.drain();
+      clock.resume();
+      const out = {
+        real,
+        text: el.textContent,
+        steps,
+        children: el.children.length,
+        classes: el.className,
+        jobs: clock.finiteJobs,
+      };
+      el.remove();
+      return out;
+    });
+    assert.equal(result.text, result.real);
+    assert.ok(result.steps > 1, 'it resolved without animating');
+    assert.equal(result.children, 0, 'the scramble left its scaffolding behind');
+    assert.equal(result.jobs, 0, 'the placeholder left a job on the clock');
+  });
+
+  // Piece by piece: a settled cell stays settled, and the count only grows.
+  test('cells settle progressively and never unsettle', async () => {
+    const problems = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      // Binary charset against letters-only text: a noise character can never
+      // coincide with the real one, so "shows the real character" really does
+      // mean settled.
+      const real = 'alpha bravo charlie';
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = real;
+      el.setAttribute('data-wt-order', 'ltr');
+      el.setAttribute('data-wt-charset', 'binary');
+      host.append(el);
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.start();
+      const out = [];
+      let previous = -1;
+      let previousMask = null;
+      for (let i = 0; i < 80; i += 1) {
+        const settled = ph.settled;
+        if (settled < previous) out.push(`tick ${i}: settled fell from ${previous} to ${settled}`);
+        // ltr order: the settled prefix must match the real text and only grow.
+        const shown = ph.shown;
+        if (previousMask !== null) {
+          for (let k = 0; k < previousMask.length; k += 1) {
+            if (previousMask[k] === real[k] && shown[k] !== real[k]) {
+              out.push(`tick ${i}: cell ${k} unsettled`);
+            }
+          }
+        }
+        previous = settled;
+        previousMask = shown;
+        if (!ph.live) break;
+        clock.step();
+      }
+      if (previous !== [...real].length) out.push(`ended with ${previous} of ${[...real].length} settled`);
+      clock.resume();
+      el.remove();
+      return out.slice(0, 5);
+    });
+    assert.deepEqual(problems, []);
+  });
+
+  test('ltr settles from the left and rtl from the right', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const out = {};
+      clock.pause();
+      for (const order of ['ltr', 'rtl']) {
+        const el = document.createElement('span');
+        el.className = 'ph';
+        el.textContent = 'abcdefghijklmnop';
+        el.setAttribute('data-wt-order', order);
+        el.setAttribute('data-wt-charset', 'binary');
+        host.append(el);
+        const ph = window.Webterm.ph(el);
+        ph.start();
+        // Step until roughly half the cells have settled, then look at which.
+        for (let i = 0; i < 40 && ph.settled < 8; i += 1) clock.step();
+        out[order] = { shown: ph.shown, settled: ph.settled };
+        el.remove();
+      }
+      clock.resume();
+      return out;
+    });
+    // In ltr the first cell is real before the last; in rtl the reverse.
+    assert.equal(result.ltr.shown[0], 'a', `ltr showed ${JSON.stringify(result.ltr.shown)}`);
+    assert.equal(result.rtl.shown[15], 'p', `rtl showed ${JSON.stringify(result.rtl.shown)}`);
+  });
+
+  // Scrambling a space turns "alpha bravo" into one unreadable run and loses
+  // the shape of the value, which is the thing the reader is waiting to see.
+  test('whitespace is never scrambled', async () => {
+    const problems = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const real = 'ab cd  ef';
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = real;
+      host.append(el);
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.start();
+      const out = [];
+      for (let i = 0; i < 60; i += 1) {
+        const shown = ph.shown;
+        for (let k = 0; k < real.length; k += 1) {
+          if (real[k] === ' ' && shown[k] !== ' ') out.push(`tick ${i}: cell ${k} is ${JSON.stringify(shown[k])}`);
+        }
+        if (!ph.live) break;
+        clock.step();
+      }
+      clock.resume();
+      el.remove();
+      return out.slice(0, 5);
+    });
+    assert.deepEqual(problems, []);
+  });
+
+  test('the accessible name is the real text from the first frame', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const real = 'alpha-7';
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = real;
+      host.append(el);
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.start();
+      // What assistive technology is offered: every child that is not
+      // aria-hidden, concatenated.
+      const atText = () => [...el.childNodes]
+        .filter((n) => !(n.nodeType === Node.ELEMENT_NODE && n.getAttribute('aria-hidden') === 'true'))
+        .map((n) => n.textContent)
+        .join('');
+      const atFirstFrame = atText();
+      const maskHidden = el.querySelector('.ph-mask')?.getAttribute('aria-hidden');
+      const realPresent = el.querySelector('.ph-real')?.textContent;
+      clock.step(3);
+      const midway = atText();
+      clock.drain();
+      clock.resume();
+      el.remove();
+      return { atFirstFrame, midway, maskHidden, realPresent, real };
+    });
+    assert.equal(result.maskHidden, 'true', 'the scrambling glyphs must be hidden from AT');
+    assert.equal(result.realPresent, result.real, 'the real text must stay in the DOM for AT');
+    assert.equal(result.atFirstFrame, result.real);
+    assert.equal(result.midway, result.real);
+  });
+
+  // §11.2 rule 6: the final state, immediately, with nothing left scheduled.
+  test('motion off resolves on frame 0', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      document.documentElement.dataset.wtMotion = 'off';
+      const host = document.querySelector('#ph-lab');
+      const real = 'alpha-7';
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = real;
+      host.append(el);
+      const ph = window.Webterm.ph(el);
+      ph.start();
+      const out = { text: el.textContent, live: ph.live, jobs: clock.finiteJobs, children: el.children.length };
+      delete document.documentElement.dataset.wtMotion;
+      el.remove();
+      return out;
+    });
+    assert.equal(result.text, 'alpha-7');
+    assert.equal(result.live, false);
+    assert.equal(result.jobs, 0);
+    assert.equal(result.children, 0);
+  });
+
+  test('hold scrambles until resolved, and resolve lands new text', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = '0.00';
+      host.append(el);
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.hold();
+      const w0 = el.getBoundingClientRect().width;
+      clock.step(50);
+      const heldText = ph.shown;
+      const stillLive = ph.live;
+      const wHeld = el.getBoundingClientRect().width;
+      ph.resolve('3.91');
+      clock.drain();
+      const wEnd = el.getBoundingClientRect().width;
+      clock.resume();
+      const out = { w0, wHeld, wEnd, heldText, stillLive, text: el.textContent, jobs: clock.finiteJobs };
+      el.remove();
+      return out;
+    });
+    assert.equal(result.stillLive, true, 'hold() stopped on its own');
+    assert.notEqual(result.heldText, '0.00', 'hold() is not scrambling');
+    assert.equal(result.heldText.length, 4);
+    assert.equal(result.text, '3.91');
+    assert.equal(result.wHeld, result.w0, 'the width moved while holding');
+    assert.equal(result.wEnd, result.w0, 'the width moved on resolve');
+    assert.equal(result.jobs, 0);
+  });
+
+  test('resolving to longer text clips rather than reflowing', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = '0.00';
+      host.append(el);
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.hold();
+      const w0 = el.getBoundingClientRect().width;
+      ph.resolve('a much longer value than four cells');
+      clock.drain();
+      const w1 = el.getBoundingClientRect().width;
+      clock.resume();
+      el.remove();
+      return { w0, w1 };
+    });
+    assert.equal(result.w1, result.w0, 'long text reflowed the placeholder');
+  });
+
+  test('fail settles on an error marker', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = '0.00';
+      host.append(el);
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.hold();
+      ph.fail();
+      clock.drain();
+      clock.resume();
+      const out = { text: el.textContent, failed: el.classList.contains('ph-failed'), jobs: clock.finiteJobs };
+      el.remove();
+      return out;
+    });
+    assert.match(result.text, /^\?+$/, `settled on ${JSON.stringify(result.text)}`);
+    assert.equal(result.text.length, 4);
+    assert.ok(result.failed, 'a failed placeholder needs a class to color');
+    assert.equal(result.jobs, 0);
+  });
+
+  test('data-wt-ph mounts on init, and "hold" waits', async () => {
+    const result = await page.evaluate(async () => {
+      const auto = document.querySelector('#ph-auto');
+      const held = document.querySelector('#ph-held');
+      return {
+        autoResolved: auto.textContent,
+        autoMounted: !!window.Webterm.get('placeholder', auto),
+        heldMounted: !!window.Webterm.get('placeholder', held),
+        heldLive: window.Webterm.get('placeholder', held)?.live,
+      };
+    });
+    assert.equal(result.autoMounted, true, 'init did not mount data-wt-ph');
+    assert.equal(result.heldMounted, true);
+    assert.equal(result.heldLive, true, 'data-wt-ph="hold" should keep scrambling');
+  });
+
+  test('a resolved placeholder fires wt:ph:resolved once', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const host = document.querySelector('#ph-lab');
+      const el = document.createElement('span');
+      el.className = 'ph';
+      el.textContent = 'alpha';
+      host.append(el);
+      const seen = [];
+      el.addEventListener('wt:ph:resolved', (e) => seen.push(e.detail.text));
+      clock.pause();
+      window.Webterm.ph(el).start();
+      clock.drain();
+      clock.resume();
+      el.remove();
+      return seen;
+    });
+    assert.deepEqual(result, ['alpha']);
+  });
+});
+
+describe('placeholder area', () => {
+  test('an area is exactly --cells by --rows', async () => {
+    const found = await page.evaluate(() => [...document.querySelectorAll('.ph-area')].map((el) => {
+      const s = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return {
+        cells: Number(s.getPropertyValue('--cells')),
+        rows: Number(s.getPropertyValue('--rows')),
+        w: r.width,
+        h: r.height,
+      };
+    }));
+    assert.ok(found.length > 0, 'no .ph-area on the page');
+    for (const a of found) {
+      assert.ok(Math.abs(a.w - a.cells * cell.ch) < TOL, `area is ${a.w}px, expected ${a.cells} cells`);
+      assert.ok(Math.abs(a.h - a.rows * cell.lh) < TOL, `area is ${a.h}px, expected ${a.rows} rows`);
+    }
+  });
+
+  test('the noise mask is exactly --rows lines of --cells characters', async () => {
+    const problems = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#ph-area-demo');
+      const s = getComputedStyle(el);
+      const cells = Number(s.getPropertyValue('--cells'));
+      const rows = Number(s.getPropertyValue('--rows'));
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.hold();
+      const out = [];
+      for (let i = 0; i < 20; i += 1) {
+        const lines = ph.shown.split('\n');
+        if (lines.length !== rows) out.push(`tick ${i}: ${lines.length} lines, expected ${rows}`);
+        for (const [k, line] of lines.entries()) {
+          if ([...line].length !== cells) out.push(`tick ${i} line ${k}: ${[...line].length} characters, expected ${cells}`);
+        }
+        clock.step();
+      }
+      ph.resolve();
+      clock.drain();
+      clock.resume();
+      return out.slice(0, 5);
+    });
+    assert.deepEqual(problems, []);
+  });
+
+  // An area's mask is opaque, so a settled cell cannot erode to a blank — it
+  // would reveal the background, not the content. It takes the character that
+  // belongs to that cell, exactly as a text placeholder does, which is only
+  // possible because the content is already on the grid.
+  test('an area settles onto its real content, then removes its mask', async () => {
+    const result = await page.evaluate(() => {
+      const { clock } = window.Webterm.motion;
+      const el = document.querySelector('#ph-area-demo');
+      clock.pause();
+      const ph = window.Webterm.ph(el);
+      ph.start();
+      const real = ph.real;
+      const atStart = [...ph.shown].filter((c) => c !== ' ' && c !== '\n').length;
+      // Part-way through, every settled cell must already read correctly.
+      for (let i = 0; i < 6; i += 1) clock.step();
+      const mid = ph.shown;
+      const settledWrong = [...mid].filter((c, i) => c !== real[i] && c === ' ').length;
+      const settledRight = [...mid].filter((c, i) => c === real[i] && c !== ' ' && c !== '\n').length;
+      clock.drain();
+      const masks = el.querySelectorAll('.ph-mask').length;
+      clock.resume();
+      return { atStart, settledWrong, settledRight, masks, content: el.textContent.includes('alpha') };
+    });
+    assert.ok(result.atStart > 0, 'the area started with no noise');
+    assert.equal(result.settledWrong, 0, 'a cell blanked instead of settling on its character');
+    assert.ok(result.settledRight > 0, 'no cell had settled part-way through');
+    assert.equal(result.masks, 0, 'the mask outlived the animation');
+    assert.ok(result.content, 'the real content did not come back');
+  });
+
+  test('an unmounted area shows a flat skeleton with no script', async () => {
+    const ctx = await browser.newContext({
+      deviceScaleFactor: 1,
+      viewport: { width: 1280, height: 1024 },
+      javaScriptEnabled: false,
+    });
+    const quiet = await ctx.newPage();
+    await quiet.goto(`${server.origin}/test/behavior.html`);
+    await quiet.waitForTimeout(200);
+    const c = await cellSize(quiet);
+    const result = await quiet.evaluate(() => {
+      const el = document.querySelector('#ph-area-demo');
+      const mask = el.querySelector('.ph-mask');
+      return {
+        r: el.getBoundingClientRect(),
+        maskContent: getComputedStyle(mask, '::before').content.slice(0, 4),
+        maskEmpty: mask.textContent === '',
+      };
+    });
+    assert.ok(result.maskEmpty, 'the static mask should hold no text');
+    assert.match(result.maskContent, /[░▒▓]/, `static skeleton paints ${JSON.stringify(result.maskContent)}`);
+    assert.ok(offGrid(result.r.width, c.ch) < TOL, 'the static area is off the grid');
+    await ctx.close();
+  });
+});
+
 describe('no-script', () => {
   // §11.1: the CSS is a whole framework on its own. The static page has to
   // render and stay on the grid with the module never loaded.
@@ -993,7 +1591,7 @@ describe('no-script', () => {
     await quiet.goto(`${server.origin}/test/behavior.html`);
     await quiet.waitForTimeout(200);
     const c = await cellSize(quiet);
-    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label');
+    const found = await rects(quiet, '.box, .statusbar, .shade, .spin, .progress, .progress-label, .ph, .ph-area');
     assert.ok(found.length > 0, 'nothing rendered without script');
     const bad = found.filter((r) => offGrid(r.w, c.ch) >= TOL || offGrid(r.h, c.lh) >= TOL);
     assert.deepEqual(bad.map((r) => `${describeRect(r)} ${r.w}x${r.h}`), []);

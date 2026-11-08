@@ -17,7 +17,9 @@
 import * as cells from './lib/cells.js';
 import * as motion from './lib/motion.js';
 import { createBox, ensureEdge, boxTitle } from './lib/box.js';
+import { emit } from './lib/events.js';
 import { Progress, fillCells, setLoading, isLoading } from './progress.js';
+import { Placeholder, CHARSETS } from './placeholder.js';
 
 export const version = '0.1.0';
 
@@ -35,24 +37,10 @@ export const config = {
   toastTimeout: 6000,
 };
 
-export { cells, motion, createBox, ensureEdge, boxTitle };
+export { cells, motion, createBox, ensureEdge, boxTitle, emit };
 export { Progress, fillCells, setLoading, isLoading };
+export { Placeholder, CHARSETS };
 
-/* ------------------------------------------------------------------ events */
-
-/**
- * Dispatch `wt:<type>` on `el`, bubbling and cancelable, and report whether it
- * survived: false means a listener called preventDefault() and the caller must
- * not proceed. Every component's before-event goes through here, so "can I
- * show?" is one call and one convention (§11.2 rule 3).
- */
-export function emit(el, type, detail = null) {
-  return el.dispatchEvent(new CustomEvent(`wt:${type}`, {
-    bubbles: true,
-    cancelable: true,
-    detail,
-  }));
-}
 
 /* ---------------------------------------------------------------- registry */
 
@@ -186,6 +174,12 @@ export function scrollLocks() {
 /* ------------------------------------------------------------- components */
 
 register('progress', Progress);
+register('placeholder', Placeholder);
+
+/** The placeholder on `el`, mounting it if it has none. */
+export function ph(el) {
+  return getOrCreate('placeholder', el);
+}
 
 const api = {
   version,
@@ -207,6 +201,9 @@ const api = {
   fillCells,
   setLoading,
   isLoading,
+  Placeholder,
+  CHARSETS,
+  ph,
 };
 
 if (typeof window !== 'undefined') {

@@ -155,6 +155,50 @@
   </div>
   <p class="mt-1"><button class="btn" id="load-box-toggle">toggle box</button></p>
 
+  <h2 class="mt-2">Placeholders</h2>
+  <p>The placeholder holds exactly the cells the real content will hold, so the
+  value settles into them out of noise, piece by piece, and the width never
+  moves. Nothing else on this page can promise that.</p>
+
+  <dl class="kv mt-1">
+    <dt>auto</dt><dd><span class="ph" id="ph-auto" data-wt-ph>alpha-7</span></dd>
+    <dt>held</dt><dd><span class="ph" id="ph-held" data-wt-ph="hold">0.00</span></dd>
+    <dt>ltr</dt><dd><span class="ph" id="ph-ltr" data-wt-order="ltr">replica charlie is behind</span></dd>
+    <dt>random</dt><dd><span class="ph" id="ph-random" data-wt-order="random">replica charlie is behind</span></dd>
+    <dt>center</dt><dd><span class="ph" id="ph-center" data-wt-order="center">replica charlie is behind</span></dd>
+    <dt>ends</dt><dd><span class="ph" id="ph-ends" data-wt-order="ends">replica charlie is behind</span></dd>
+    <dt>hex</dt><dd><span class="ph" id="ph-hex" data-wt-charset="hex">0x41ff8e02</span></dd>
+    <dt>blocks</dt><dd><span class="ph" id="ph-blocks" data-wt-charset="blocks">load average 0.41</span></dd>
+  </dl>
+  <p class="mt-1">
+    <button class="btn" id="ph-run">run all</button>
+    <button class="btn" id="ph-hold">hold</button>
+    <button class="btn" id="ph-resolve">resolve</button>
+    <button class="btn btn-error" id="ph-fail">fail</button>
+  </p>
+  <div id="ph-lab"></div>
+
+  <h3 class="mt-2">Area</h3>
+  <p>The same settle in two dimensions, over content that is already on the
+  grid. Whitespace never scrambles, so the table’s columns are there from the
+  first frame and the values arrive into them. With no script it is a flat
+  skeleton instead.</p>
+  <div class="box box-tight mt-1">
+    <span class="box-edge"></span>
+    <div class="ph-area" id="ph-area-demo" style="--cells: 44; --rows: 5">
+      <pre>alpha     primary  0.41  ok
+bravo     replica  1.07  ok
+charlie   replica  3.92  degraded
+delta     replica  0.88  ok
+echo      replica  0.12  ok</pre>
+      <span class="ph-mask" aria-hidden="true"></span>
+    </div>
+  </div>
+  <p class="mt-1">
+    <button class="btn" id="ph-area-run">reveal</button>
+    <button class="btn" id="ph-area-hold">hold</button>
+  </p>
+
   <h3 class="mt-2">Scroll lock</h3>
   <p>Locking page scroll must not change the column count: without a stable
   scrollbar gutter the screen rounds up a column and the whole page reflows
@@ -249,6 +293,17 @@ $('#load-box-toggle').addEventListener('click', () => {
   const box = $('#load-box');
   Webterm.setLoading(box, !Webterm.isLoading(box));
 });
+
+const phDemos = ['#ph-auto', '#ph-held', '#ph-ltr', '#ph-random', '#ph-center',
+  '#ph-ends', '#ph-hex', '#ph-blocks'].map((s) => Webterm.ph($(s)));
+const phArea = Webterm.ph($('#ph-area-demo'));
+
+$('#ph-run').addEventListener('click', () => { for (const p of phDemos) p.start(); });
+$('#ph-hold').addEventListener('click', () => { for (const p of phDemos) p.hold(); });
+$('#ph-resolve').addEventListener('click', () => { for (const p of phDemos) p.resolve(); });
+$('#ph-fail').addEventListener('click', () => { for (const p of phDemos) p.fail(); });
+$('#ph-area-run').addEventListener('click', () => phArea.start());
+$('#ph-area-hold').addEventListener('click', () => phArea.hold());
 
 $('#lock').addEventListener('click', () => {
   Webterm.lockScroll();

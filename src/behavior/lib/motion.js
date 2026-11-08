@@ -152,10 +152,16 @@ export const clock = {
     }
   },
 
-  /** Run every live job to completion. */
+  /**
+   * Step until every job that has an end has reached it.
+   *
+   * A job with `ticks: Infinity` — a placeholder holding while a fetch is in
+   * flight — is not drainable by definition, so it does not block this and is
+   * left running. Waiting for it would hang.
+   */
   drain(max = 100000) {
     let k = 0;
-    while (jobs.size > 0 && k < max) {
+    while (k < max && [...jobs].some((job) => Number.isFinite(job.ticks))) {
       clock.step();
       k += 1;
     }
@@ -166,4 +172,7 @@ export const clock = {
 
   /** How many jobs are live — the "left no timer running" assertion. */
   get jobs() { return jobs.size; },
+
+  /** How many of those will end on their own. */
+  get finiteJobs() { return [...jobs].filter((job) => Number.isFinite(job.ticks)).length; },
 };
