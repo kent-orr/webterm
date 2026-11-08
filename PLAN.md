@@ -39,25 +39,31 @@ These are non-negotiable in the core layer. Every component must satisfy them.
    Breakpoints are expressed in columns (`@container (min-width: 80ch)`),
    not pixels.
 
-## 3. Architecture: three layers
+## 3. Architecture: four layers
 
 ```
-┌──────────────────────────────────────────────┐
-│ 3. skin      (optional) CRT effects: scanlines,│
-│              glow, cursor blink, noise        │
-├──────────────────────────────────────────────┤
-│ 2. theme     color custom properties only     │
-│              (16 ANSI + fg/bg/cursor/select)  │
-├──────────────────────────────────────────────┤
-│ 1. grid      reset, cell units, rows/cols,    │
-│              boxes, type, tables, forms       │
-└──────────────────────────────────────────────┘
+┌───────────────────────────────────────────────┐
+│ 4. behavior  (optional) JS that drives state: │
+│              toasts, loading, placeholders,   │
+│              modals                           │
+├───────────────────────────────────────────────┤
+│ 3. skin      (optional) CRT effects:           │
+│              scanlines, glow, cursor blink     │
+├───────────────────────────────────────────────┤
+│ 2. theme     color custom properties only      │
+│              (16 ANSI + fg/bg/cursor/select)   │
+├───────────────────────────────────────────────┤
+│ 1. grid      reset, cell units, rows/cols,     │
+│              boxes, type, tables, forms        │
+└───────────────────────────────────────────────┘
 ```
 
 - **grid** never mentions a literal color. It references `var(--c0)` …
   `var(--c15)`, `var(--fg)`, `var(--bg)`, etc.
 - **theme** is one file per color scheme that sets only those variables.
 - **skin** is additive and can be omitted without affecting layout.
+- **behavior** is additive and can be omitted without affecting *appearance*:
+  the CSS never depends on it (§11.1).
 
 ## 4. Layer 1: grid
 
@@ -346,10 +352,13 @@ webterm/
   PLAN.md
   src/
     grid/        reset.css tokens.css layout.css box.css type.css
-                 table.css forms.css components.css
+                 table.css forms.css components.css overlay.css
     themes/      pawpaw.css (the default) tomorrow-night.css
                  solarized-dark.css ...
     skin/        crt.css
+    behavior/    webterm.js (entry) toast.js modal.js progress.js
+                 placeholder.js
+      lib/       cells.js motion.js box.js aria.js
   dist/          built single-file bundles (webterm.css, webterm.min.css)
   fonts/         bundled full-coverage woff2 + webterm-fonts.css,
                  metrics.json (font-table limits)
@@ -361,8 +370,13 @@ webterm/
     default-theme.html   the framework with no theme <link> (§5.2)
     themes.spec.js       theme contract + contrast lint (no browser)
     default.spec.js      the shipped default paints, and a <link> beats it
+    behavior.html        kitchen sink for the behavior layer (§11)
+    behavior.spec.js     Playwright: the JS components, cell-exact at every
+                         frame, plus the layer-4 source lint
     lib/color.js         hex -> luminance -> WCAG contrast
     lib/theme.js         theme file -> resolved variable map
+    lib/grid.js          cell probe + off-grid math, shared by specs
+    lib/borders.js       PNG border continuity + corner checks
     *.spec.js            Playwright: assert computed widths are integer ch
   tools/
     font-limits.py       font tables → fonts/metrics.json
@@ -401,7 +415,10 @@ webterm/
 - [ ] Fractional ch from flex distribution: accept or enforce integers?
 - [ ] Wide glyph support (`2ch` inline-block wrapper) — post-v1.
 - [ ] Half-block / braille image renderer — post-v1, JS, separate package.
-- [ ] Interactive JS (dropdowns, modals) — out of scope; CSS-only v1.
+- [x] Interactive JS — **taken**, as layer 4 (§11). Optional, inside this
+      repo, and the CSS never depends on it. Round one is toasts, loading,
+      placeholders and modals; collapse, dropdown, tabs, tooltip and
+      offcanvas are the next pass.
 - [ ] Light-background themes: does inverse-video hierarchy still read well?
 
 ## 9. Milestones
@@ -418,8 +435,10 @@ webterm/
 6. **Tests** — Playwright checks: every `.box` edge lands on an integer
    `ch`/`lh` boundary; borders have no sub-cell gaps (pixel diff).
 7. **Skin** — `.crt`.
-8. **Docs site** — built with webterm itself.
-9. **Generator** — resolve §8 and automate themes.
+8. **Behavior** — layer 4 (§11), in five phases: foundation, loading,
+   placeholders, toasts, modals, then docs.
+9. **Docs site** — built with webterm itself.
+10. **Generator** — resolve §8 and automate themes.
 
 ## 10. Testing approach
 
@@ -430,3 +449,272 @@ Test-driven where it is measurable:
   assert `width % chPx` and `height % lhPx` are within 0.5px of 0.
 - Screenshot diff of the `│` seam test at each shipped font/line-height.
 - Theme files linted: every theme must define exactly the §5.1 variable set.
+
+## 11. Layer 4: behavior
+
+Bootstrap's value is not only its CSS: it ships default behavior for the
+handful of things every page needs — a toast, a spinner, a skeleton, a modal.
+webterm's §2 rules make those *harder* and more interesting, because a toast
+that slides in on a sub-cell offset, or a skeleton that resizes when the real
+text arrives, breaks the one property the framework exists to hold.
+
+Round one is **toasts, loading, placeholders and modals**. Collapse, dropdown,
+tabs, tooltip and offcanvas are the next pass, listed here only so the
+conventions below are designed to carry them.
+
+### 11.1 The rule that keeps the core CSS-only
+
+**The CSS never depends on the JS.** Every component has a complete, styled,
+static declarative form that renders with no script loaded; the JS only drives
+transitions between states. `src/webterm.css` stays a whole framework on its
+own, with no dependencies and no build step — the behavior layer is a second,
+optional `<script type="module">`.
+
+Consequences that are easy to get wrong, so they are rules:
+
+- a component's *appearance* lives entirely in `src/grid/`, never in a JS
+  template's inline styles;
+- a server-rendered toast or modal in the initial HTML looks right before the
+  module loads, and is adopted by it on init rather than rebuilt;
+- if the module fails to load, the page degrades to static boxes, not to
+  invisible ones. No component is `display: none` by default and revealed by
+  script — `.toast` and `<dialog>` are visible when present in the DOM, and
+  the JS removes them.
+
+### 11.2 Conventions
+
+Decided once, because retrofitting them across four components is the
+expensive kind of mistake.
+
+1. **Namespace.** Classes stay short and Bootstrap-like (`.toast`, `.modal`),
+   matching the existing `.badge`/`.alert`. Everything that is not a class is
+   namespaced `wt`: attributes `data-wt-toggle`, `data-wt-target`,
+   `data-wt-dismiss`, and events `wt:toast:show`.
+2. **Dual API.** Declarative first —
+   `data-wt-toggle="modal" data-wt-target="#confirm"` needs no JS written by
+   the author. Imperative for everything else: `Webterm.toast(…)`,
+   `Webterm.Modal.getOrCreate(el).show()`. One instance per element, cached on
+   the element.
+3. **Lifecycle events** on the component element, bubbling, with cancelable
+   before-events: `wt:x:show` → `wt:x:shown`, `wt:x:hide` → `wt:x:hidden`.
+   `preventDefault()` on a before-event cancels the transition.
+4. **No px from JS either.** Any inline style the JS writes is `Nch`, `Nlh` or
+   a unitless custom property (`--cells: 24`). Geometry is computed in cells,
+   never in pixels, and `lib/cells.js` is the only module that reads a pixel
+   measurement at all. `behavior.spec.js` lints `src/behavior/**/*.js` for px,
+   rem and em lengths and for color literals, the same way `grid.spec.js`
+   lints the grid layer.
+5. **Motion is cell-stepped.** A terminal does not tween: it repaints a cell.
+   Every animation advances by whole cells or whole rows on a tick,
+   `--wt-tick: 60ms` (≈16 cells/s), which is the one timing knob. CSS
+   animations use `steps(N, end)` and translate in `ch`/`lh`; JS animations go
+   through the single scheduler in `lib/motion.js`, so the whole page steps on
+   one clock instead of N drifting intervals.
+6. **Reduced motion means the final state immediately** — not a faster
+   animation — in every component. `prefers-reduced-motion: reduce` does it
+   automatically; `<html data-wt-motion="off">` forces it, which is also how
+   the specs make animation deterministic (Playwright's
+   `animations: 'disabled'` disables CSS animations only, not JS ones).
+7. **Zero dependencies, no build.** ES modules importing each other by
+   relative path, loaded as `<script type="module">` and served unbundled from
+   jsDelivr exactly like the CSS. The entry also assigns `window.Webterm`, so
+   the data API works for authors who write no JS. A concatenation script can
+   come later if the request count ever matters; it is not needed for the
+   framework to work.
+8. **Accessibility is part of each component**, not a later pass: toasts live
+   in a live region, modals are native `<dialog>` with `showModal()`, and a
+   scrambling placeholder exposes its real text to assistive technology from
+   the first frame.
+
+### 11.3 Four grid-specific hazards
+
+These are the places where ordinary component JS would quietly break §2, and
+they are settled in the foundation phase rather than per component.
+
+**Scroll locking changes the column count.** A modal that locks page scroll
+removes the scrollbar, `.screen` rounds up by a column, and the entire page
+reflows behind the dialog. `reset.css` gets `scrollbar-gutter: stable`, and a
+spec asserts the column count is identical with a modal open.
+
+**Centering lands on a half row.** The viewport is not a whole number of rows,
+so `place-content: center` puts a dialog's top edge mid-cell. An overlay is
+`height: round(down, 100dvh, 1lh)`; a dialog's offset from it rounds down to
+`1lh`. Where CSS cannot know the child's height, the no-JS fallback is a fixed
+`--wt-dialog-top: 4lh` and the JS snaps to the nearest whole row.
+
+**A backdrop cannot name a color.** `grid.spec.js` forbids `rgba()` and
+`color-mix()` in the grid layer, which rules out the usual translucent black.
+The terminal answer is better: dim the page behind a dialog with a 2-D run of
+`░` in `--c8`, a new token in `glyphs.css` built the same way as the border
+runs. That is what a TUI does, and it stays cell-exact. `opacity` over
+`var(--bg)` is kept as a `.backdrop-plain` variant for pages with a lot behind
+the dialog.
+
+**Stacking needs a scale.** `.statusbar-fixed` currently takes `z-index: 1` on
+its own. `overlay.css` defines the whole order: content 0, statusbar 10, toast
+20, backdrop 30, modal 31.
+
+And one smaller trap: anything the JS builds that is a `.box` must carry its
+`<span class="box-edge">`, or it draws two edges out of four (box.css). A
+shared `createBox()` in `lib/box.js` is the only place a box is constructed.
+
+### 11.4 Loading
+
+Mostly CSS, which is the point: a spinner that needs JS to animate is a
+spinner that stops when the main thread is busy.
+
+- `.progress` is unchanged: `--cells` wide, `--fill` cells filled.
+- `.progress-indeterminate` — a short lit run marching the track, a
+  `steps(--cells)` keyframe translating in `ch`. No JS.
+- `.spin` gains real frames with the same trick the borders use: a `1ch`
+  window clipping a horizontal run of frame glyphs, translated `1ch` per step
+  by a `steps(N)` animation. Frame sets as tokens, selected by class:
+  `.spin-line` (`|/-\`), `.spin-dots` (braille `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`), `.spin-arc`
+  (`◜◝◞◟`), `.spin-bar` (`▁▂▃▄▅▆▇█`).
+- `.loading` on a `.btn` or `.box` sets `aria-busy`, dims the content and
+  centers a spinner **inside the same cell count**, so nothing reflows while
+  it waits.
+- `.progress-label` is a fixed `4ch`, right-aligned, so `9%` → `100%` does not
+  shift the bar it labels.
+
+`progress.js` is small: `Webterm.Progress(el).set(value, max)` converts to
+whole cells, writes `--fill` and mirrors `aria-valuenow`; `data-wt-progress`
+is watched with a `MutationObserver` so a server-rendered update (htmx, Shiny)
+needs no JS at all. The rounding rule is floor, with two exceptions that stop
+it lying: never 0 cells while `value > 0`, and never `--cells` until
+`value === max`.
+
+### 11.5 Placeholders
+
+The novel one. A cell grid can promise something a rem-based skeleton cannot:
+**the placeholder occupies exactly the cells the real content will occupy**, so
+resolution causes no layout shift at all.
+
+**`.ph` — text scramble.** The real text stays in the DOM:
+
+```html
+<span class="ph" data-wt-ph>alpha-7</span>
+```
+
+On init the element's text is read and stored, the element is locked to `N`
+cells where `N` is that string's length, and the animating glyphs are
+`aria-hidden` behind an accessible name carrying the real text. Each tick,
+every unresolved position shows a fresh random character from the charset, and
+`k` more positions settle on their real character permanently — so the text
+arrives piece by piece out of noise, and the width never changes from the
+first frame.
+
+Knobs, all `data-` attributes with custom-property defaults:
+`data-wt-order="ltr|rtl|random|center|ends"` (which positions settle first),
+`data-wt-charset="alnum|hex|binary|symbols|blocks"`, `data-wt-tick`,
+`data-wt-duration`, and `data-wt-cycle` (how many random characters a cell
+shows before settling, so a cell reads as spinning rather than flickering
+once).
+
+Charsets contain only single-cell characters. Katakana is the obvious
+temptation and is excluded by rule 7: it is double-width, so it would break
+the grid. The spec measures every character in every shipped charset against
+`1ch`, which makes that a test failure rather than a visual regression.
+
+**`.ph-area` — graphic dissolve.** A `--cells` × `--rows` rectangle filled
+with random `░▒▓█` noise that erodes cell by cell to reveal the real content
+underneath: a table, a chart, an ASCII graphic. Same scheduler, same order
+options, two dimensions. Its static no-JS form is a flat `░` fill, which is
+the conventional skeleton.
+
+**States**, which is what makes this useful rather than decorative:
+`Webterm.ph(el).hold()` scrambles indefinitely while a fetch is in flight,
+`.resolve(text)` settles on a value that may differ from what the element held,
+and `.fail()` settles on `?` in `--error`. `hold()` → `resolve(actual)` is the
+async-dashboard flow, and the cell count comes from the placeholder's declared
+width rather than the eventual text, so the two must agree — documented, and
+over-long text is clipped rather than allowed to reflow.
+
+### 11.6 Toasts
+
+A stack in any corner, each toast a `.box` with its `.box-edge`, a level
+`.box-title`, and tinting that reuses `.alert`'s semantic borders.
+
+- width is `--cells` (default 40) clamped to the screen's column count; height
+  is however many whole rows the text wraps to
+- the stack grows from its corner with `1lh` gaps and a `1ch`/`1lh` inset, and
+  clears `.statusbar-fixed` when it is bottom-anchored
+- entry is a **typed reveal**: the box draws, then the text appears `k` cells
+  per tick, reusing the placeholder scheduler. Exit is immediate.
+- **the bottom border is the dismiss timer.** It erodes one cell per tick
+  until it is gone and the toast goes with it — a progress indicator obtained
+  for free out of a border the box already draws. `.toast-notimer` opts out.
+- pause on hover and on focus; a queue cap (`Webterm.config.toastMax`,
+  default 4) with overflow queued, and identical consecutive messages
+  collapsed into a `×N` counter in the title
+- `Webterm.toast('replica charlie is behind', { level: 'warn', timeout: 6000 })`,
+  and toasts already in the initial HTML are adopted with the same lifecycle
+
+### 11.7 Modals
+
+Native `<dialog>` with `showModal()`, which is the whole reason `modal.js`
+stays small: focus trap, `Escape`, `inert` background and top-layer stacking
+are the browser's job.
+
+```html
+<dialog class="box modal modal-60" id="confirm">
+  <span class="box-edge"></span>
+  <span class="box-title">Confirm</span>
+  <p class="modal-body">Drop replica charlie?</p>
+  <div class="modal-actions">
+    <button class="btn btn-error" data-wt-dismiss="modal" value="yes">Yes</button>
+    <button class="btn" data-wt-dismiss="modal">Cancel</button>
+  </div>
+</dialog>
+```
+
+- `.modal-40` / `.modal-60` / `.modal-80` are widths in cells, clamped to the
+  screen's columns; the top edge is snapped to a whole row (§11.3)
+- the `░` shade backdrop (§11.3), with `::backdrop` taking the plain variant
+  since a pseudo-element cannot hold a clipped glyph run
+- `data-wt-toggle="modal"`, `data-wt-dismiss="modal"`, backdrop click to close
+  with `data-wt-static` to refuse it, and focus restored to the opener
+- scroll locked without changing the column count (§11.3)
+- `await Webterm.confirm('Drop replica charlie?')` and
+  `Webterm.prompt({ label: 'host', cells: 24 })` — promise helpers, because a
+  terminal UI asks small questions constantly and a `<dialog>` per question is
+  not worth writing
+- `.modal-stack`: a second dialog shades the first, the classic TUI look
+
+### 11.8 Phases
+
+Spec first at every step, per the repo's test-based protocol: failing
+assertions in `behavior.spec.js`, then the CSS, then the JS, then the README,
+then `npm test` green.
+
+| phase | contents | why in this order |
+|-------|----------|-------------------|
+| 0 | §11.1–§11.3: `lib/cells.js`, `lib/motion.js`, `lib/box.js`, `webterm.js`, `overlay.css`, `scrollbar-gutter`, the shade token, the harness refactor (`test/lib/grid.js`, `test/lib/borders.js`, `behavior.html`, `behavior.spec.js`) and the layer-4 source lint | nothing ships visibly; everything after it is cheap |
+| 1 | §11.4 loading | mostly CSS, exercises stepped motion, needs no overlay |
+| 2 | §11.5 placeholders | self-contained, and where the scheduler earns its keep |
+| 3 | §11.6 toasts | first component needing the overlay layer, a lifecycle and a queue |
+| 4 | §11.7 modals | focus management and the scroll-lock hazard; leans on all of the above |
+| 5 | docs | README behavior section, revised CSS-only claims, limitations, test-status table |
+
+### 11.9 What the specs check
+
+Beyond each component's own behavior, the suite holds layer 4 to §2:
+
+- **source lint** — no px/rem/em length and no color literal anywhere in
+  `src/behavior/`
+- **cell exactness at every frame, not just at rest.** Animation is sampled
+  mid-flight with the scheduler driven by the test, and every sampled frame
+  has to be on the grid. A component that is only correct once it settles
+  fails here, which is the whole difference between this and a skin.
+- **no layout shift** — a placeholder's cell width is identical at frame 0,
+  mid-resolution and resolved; a `.loading` button's width is identical before
+  and after
+- **single-cell charsets** — every character the placeholder can emit measures
+  exactly `1ch`
+- **borders survive** — anything the JS builds as a `.box` passes the same PNG
+  corner and continuity checks as a hand-written one (`test/lib/borders.js`)
+- **the column count never moves** — opening a modal, showing a toast and
+  locking scroll all leave `.screen` on the same number of columns
+- **events** fire in order and the before-events are cancelable
+- **reduced motion** reaches the final state on frame 0 and leaves no timer
+  running
