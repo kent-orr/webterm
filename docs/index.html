@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — a character-grid CSS framework</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html" aria-current="page">intro</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <p>A CSS framework where every element occupies an integer number of
+  character cells. Borders are box-drawing glyphs, not 1px rules; spacing is
+  in cells, not rem; and hierarchy comes from bold, dim, inverse and color —
+  never from a font-size change.</p>
+
+  <p>Think &ldquo;Bootstrap, but the layout engine is a character grid.&rdquo;</p>
+
+  <figure class="ex">
+    <figcaption>a box, a title and a table</figcaption>
+    <div class="ex-live">
+      <div class="box">
+        <span class="box-edge"></span>
+        <span class="box-title">Hosts</span>
+        <table class="table-zebra">
+          <thead>
+            <tr><th>host</th><th>role</th><th class="num">load</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>alpha</td><td>primary</td><td class="num">0.41</td></tr>
+            <tr><td>bravo</td><td>replica</td><td class="num">1.07</td></tr>
+            <tr><td>charlie</td><td>replica</td><td class="num">3.92</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </figure>
+
+  <p>Every page of this site is built with the framework it documents, and
+  every one of them is measured: <code>test/docs.spec.js</code> reads the
+  bounding box of each element here and fails if a width is not a whole number
+  of <code>ch</code>, a height not a whole number of <code>lh</code>, or an
+  edge not on a cell boundary. The listing under the example above was
+  generated from the live markup directly above it, so it cannot drift.</p>
+
+  <h2 id="not-a-skin">This is not a skin</h2>
+
+  <p>Terminal stylesheets already exist. They set a monospace font and a dark
+  palette, but their borders are <code>border: 1px</code> and their spacing is
+  in rem, so nothing lands on a character boundary and the illusion breaks as
+  soon as you look closely — or zoom in, or change the font size.</p>
+
+  <p>Here the grid itself is character-faithful. One cell is
+  <code>1ch</code> wide and <code>1lh</code> tall, every horizontal length is
+  <code>Nch</code> and every vertical length <code>Nlh</code>, and the screen
+  container rounds its own width down to a whole column count. Resize the
+  window and the page snaps. The number in the status bar is this page's
+  size in cells.</p>
+
+  <h2 id="quick-start">Quick start</h2>
+
+  <p>Two stylesheets and one class on <code>&lt;html&gt;</code>. No build
+  step, no dependencies, no JavaScript.</p>
+
+<pre><code>&lt;!doctype html&gt;
+&lt;html lang="en" class="font-jetbrains-mono"&gt;
+&lt;head&gt;
+&lt;meta charset="utf-8"&gt;
+&lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
+&lt;link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/kent-orr/webterm@main/fonts/webterm-fonts.css"&gt;
+&lt;link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/kent-orr/webterm@main/src/webterm.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div class="screen"&gt;
+    &lt;h1&gt;webterm&lt;/h1&gt;
+    &lt;p class="mt-1"&gt;Every element here is a whole number of cells.&lt;/p&gt;
+  &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+  <p>That is a complete page. <code>webterm.css</code> imports the ten grid
+  files and the default theme, Pawpaw, so it paints without a theme
+  <code>&lt;link&gt;</code>. The font stylesheet is separate because the
+  bundled fonts are the one heavy thing in the repo and a page that already
+  ships a monospace font does not need them — but it does need a calibrated
+  one, or the row height drifts from the glyph box.</p>
+
+  <p><code>@main</code> is a moving target that jsDelivr caches for half a day
+  at the edge, so pin a tag or self-host for anything real.</p>
+
+  <h2 id="the-rules">The rules</h2>
+
+  <p>Eight constraints, and every component in the framework satisfies all of
+  them. They are the whole design.</p>
+
+  <ol>
+    <li>One cell is <code>1ch</code> × <code>1lh</code>. All horizontal
+    lengths are <code>Nch</code>, all vertical lengths <code>Nlh</code>. No
+    px, rem, em or % inside the screen.</li>
+    <li>One font, one size, one line-height for the entire document. Never
+    changed per element.</li>
+    <li>Hierarchy comes only from bold, dim, inverse video, underline, color,
+    whitespace and uppercase. No size changes.</li>
+    <li>Borders are glyphs, never CSS <code>border</code> with px widths.</li>
+    <li>Unicode box-drawing is the default; an ASCII-only border style is
+    provided as an option.</li>
+    <li>No raster images in the core.</li>
+    <li>Wide glyphs — CJK, emoji — are out of scope for v1.</li>
+    <li>Breakpoints are expressed in columns, not pixels.</li>
+  </ol>
+
+  <p>Rule 3 is the one that surprises people, so here is the entire type
+  scale. There is no second font size anywhere in the framework.</p>
+
+  <figure class="ex">
+    <figcaption>hierarchy without a size change</figcaption>
+    <div class="ex-live">
+      <p><strong>bold</strong> <span class="dim">dim</span>
+      <span class="inverse">inverse</span>
+      <span class="underline">underline</span>
+      <span class="uc">uppercase</span>
+      <span class="fg-ok">ok</span>
+      <span class="fg-warn">warn</span>
+      <span class="fg-error">error</span></p>
+    </div>
+  </figure>
+
+  <h2 id="layers">Four layers</h2>
+
+  <dl class="kv">
+    <dt>grid</dt>
+    <dd>The core. Cells, boxes, type, tables, forms, components. CSS only,
+    names no color.</dd>
+
+    <dt>theme</dt>
+    <dd>Sixteen ANSI slots plus a handful of semantic aliases. Sets nothing
+    but color. Nine themes ship; Pawpaw is the default.</dd>
+
+    <dt>skin</dt>
+    <dd>Optional. The <code>.crt</code> glass — scanlines, glow, vignette, a
+    blinking cursor — under one rule: it declares nothing that can move an
+    element.</dd>
+
+    <dt>behavior</dt>
+    <dd>Optional. Toasts, loading states, placeholders, modals, collapse,
+    tabs, dropdowns, tooltips, offcanvas. The CSS never depends on it, so each
+    one has a static form that renders with no script loaded.</dd>
+  </dl>
+
+  <p>Each layer's rule is a measurable one, and the test suite measures it.
+  That is the difference between a framework and a stylesheet with opinions.</p>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

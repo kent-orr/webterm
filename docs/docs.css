@@ -1,0 +1,83 @@
+/*
+ * The docs site's own chrome (PLAN §13).
+ *
+ * Held to the grid layer's lint — no px, no rem, no em, no literal color —
+ * because of the rule the site follows: it uses nothing a reader of the docs
+ * could not use (§13.1). Whatever a site needs in order to be a site, the
+ * framework has to already provide, so there is very little here.
+ */
+
+/* The last row of a page is not flush against the pinned status bar. */
+body {
+  padding-bottom: 2lh;
+}
+
+.screen {
+  padding: 1lh 1ch;
+}
+
+/*
+ * The nav wraps on a narrow screen, and .nav's `gap: 2ch` shorthand sets the
+ * row gap too — a horizontal unit used vertically, which is off the row grid
+ * by construction. Wrapped nav lines are 1lh and need no gap at all.
+ */
+.docs-nav {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+/*
+ * A measure, in columns. The frame is as wide as the window; the text is not.
+ * 76 columns is about eleven words a line, and in a framework with one font
+ * size the measure is the only typographic lever left.
+ */
+.docs-main {
+  max-width: 96ch;
+}
+
+.docs-main > p,
+.docs-main > ul,
+.docs-main > ol,
+.docs-main > dl,
+.docs-main > blockquote {
+  max-width: 76ch;
+}
+
+/* --------------------------------------------------- examples (PLAN §13.3) */
+
+/* A blank row either side. The figure holds the listing, so the `pre + p`
+   rhythm in type.css does not reach across it. */
+.ex {
+  margin: 1lh 0;
+}
+
+.ex > figcaption {
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/*
+ * Code, listings included.
+ *
+ * pre-wrap, never a scroller: an inner horizontal scrollbar is a px-tall
+ * strip, and it is inside the element, so it puts the element's own height off
+ * the row grid — the one failure this whole framework exists to avoid. The
+ * cost is that an over-long line wraps mid-token, so docs.spec.js fails any
+ * line wider than the block it sits in and the examples are written to fit.
+ */
+.docs-main pre {
+  padding: 0 1ch;
+  white-space: pre-wrap;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The listing under a live example. It is generated from that example's own
+ * markup (docs.js), so when the script does not run it is absent rather than
+ * empty.
+ */
+.ex-src {
+  margin-top: 1lh;
+  color: var(--muted);
+}

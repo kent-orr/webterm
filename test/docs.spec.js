@@ -1,0 +1,433 @@
+'use strict';
+// Milestone 9 (PLAN §13): the docs site is the framework's largest test case.
+//
+// Every page in docs/ faces the same sweep grid.spec.js runs over the kitchen
+// sink — integer ch widths, integer lh heights, every element starting on a
+// cell boundary, continuous box borders — because a docs site is the first
+// thing in the repo that has to be *read*: long prose, a nav, code listings.
+// If the grid cannot survive that, §2 is a stunt.
+//
+// The suite discovers pages by reading the directory, so a page added later
+// cannot opt out. The rest of it holds the three structural decisions of §13.1
+// that have no build step to enforce them:
+//
+//   - the chrome is literal HTML repeated per page, so it is checked for
+//     byte-identity instead of being generated;
+//   - an example's listing is generated from its own live markup, so it is
+//     checked for a round trip instead of being trusted;
+//   - the site must read with the script blocked, because the framework's
+//     rule is that the CSS never depends on the JS (§11.1).
+const { describe, test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { chromium } = require('playwright');
+const { startServer } = require('./lib/server');
+const { TOL, cellSize, rects, offGrid, describeRect, hideFixed, showFixed, shoot } = require('./lib/grid');
+const borders = require('./lib/borders');
+
+const ROOT = path.resolve(__dirname, '..');
+const DOCS = path.join(ROOT, 'docs');
+const SRC = path.join(ROOT, 'src');
+
+// The chrome — everything from the header through the nav — is repeated
+// verbatim in every page (§13.1). These sentinels are what makes "verbatim"
+// checkable.
+const CHROME_OPEN = '<!-- docs:chrome -->';
+const CHROME_CLOSE = '<!-- /docs:chrome -->';
+
+const PAGES = fs.readdirSync(DOCS).filter((f) => f.endsWith('.html')).sort();
+
+function read(file) {
+  return fs.readFileSync(path.join(DOCS, file), 'utf8');
+}
+
+function stripComments(css) {
+  return css.replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+function stripJsComments(js) {
+  return js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
+// The chrome block, with the one attribute that is allowed to differ between
+// copies removed. aria-current marks the page you are on; everything else in
+// the block has to match to the byte.
+function chrome(file) {
+  const html = read(file);
+  const a = html.indexOf(CHROME_OPEN);
+  const b = html.indexOf(CHROME_CLOSE);
+  assert.ok(a >= 0 && b > a, `${file}: no ${CHROME_OPEN} ... ${CHROME_CLOSE} block`);
+  return html.slice(a + CHROME_OPEN.length, b).replace(/ aria-current="page"/g, '');
+}
+
+function navLinks(file) {
+  const block = chrome(file);
+  return [...block.matchAll(/<a\b[^>]*href="([^"#]+)"/g)].map((m) => m[1]);
+}
+
+// Every class the framework's own CSS defines, from all four layers.
+function frameworkClasses() {
+  const found = new Set();
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else if (entry.name.endsWith('.css')) {
+        for (const m of stripComments(fs.readFileSync(p, 'utf8')).matchAll(/\.(-?[A-Za-z_][\w-]*)/g)) {
+          found.add(m[1]);
+        }
+      }
+    }
+  };
+  walk(SRC);
+  return found;
+}
+
+// Classes the docs page is allowed to use without the framework defining
+// them: the site's own chrome, and the example scaffolding.
+const DOCS_OWN = /^(docs-|ex$|ex-)/;
+
+let server;
+let browser;
+let ctx;
+let noJsCtx;
+
+before(async () => {
+  server = await startServer();
+  browser = await chromium.launch();
+  const opts = { deviceScaleFactor: 1, viewport: { width: 1280, height: 1024 } };
+  ctx = await browser.newContext(opts);
+  noJsCtx = await browser.newContext({ ...opts, javaScriptEnabled: false });
+});
+
+after(async () => {
+  await browser.close();
+  await server.close();
+});
+
+describe('the site exists', () => {
+  test('docs/ holds at least an index', () => {
+    assert.ok(PAGES.includes('index.html'), `pages: ${PAGES.join(', ')}`);
+  });
+
+  test('every page is a whole document with the framework linked', () => {
+    const bad = [];
+    for (const file of PAGES) {
+      const html = read(file);
+      if (!/^<!doctype html>/i.test(html)) bad.push(`${file}: no doctype`);
+      if (!/<html lang="en" class="font-[a-z-]+">/.test(html)) bad.push(`${file}: no font class on <html>`);
+      if (!html.includes('../src/webterm.css')) bad.push(`${file}: does not link webterm.css`);
+      if (!html.includes('../fonts/webterm-fonts.css')) bad.push(`${file}: does not link the fonts`);
+      if (!/<title>[^<]+<\/title>/.test(html)) bad.push(`${file}: no title`);
+    }
+    assert.deepEqual(bad, []);
+  });
+
+  test('no page carries a style attribute or an inline length', () => {
+    // §13.1: the docs get no privileges the framework does not grant. A
+    // one-off inline px is exactly how a grid rots.
+    const bad = [];
+    for (const file of PAGES) {
+      const html = read(file);
+      for (const m of html.matchAll(/ style="([^"]*)"/g)) {
+        if (/\d\s*(px|rem|em)\b/.test(m[1])) bad.push(`${file}: style="${m[1]}"`);
+      }
+    }
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('the chrome is one chrome', () => {
+  test('every page carries the sentinel block', () => {
+    for (const file of PAGES) chrome(file);
+  });
+
+  test('the block is byte-identical across pages but for aria-current', () => {
+    const base = chrome(PAGES[0]);
+    const bad = PAGES.filter((f) => chrome(f) !== base);
+    assert.deepEqual(bad, [], `these differ from ${PAGES[0]}`);
+  });
+
+  test('the nav links every page, and only pages that exist', () => {
+    const links = navLinks(PAGES[0]);
+    assert.deepEqual([...links].sort(), PAGES, 'nav links vs files on disk');
+  });
+
+  test('each page marks itself current, and nothing else', () => {
+    const bad = [];
+    for (const file of PAGES) {
+      const block = read(file).slice(
+        read(file).indexOf(CHROME_OPEN), read(file).indexOf(CHROME_CLOSE),
+      );
+      const marked = [...block.matchAll(/<a\b[^>]*aria-current="page"[^>]*>/g)];
+      if (marked.length !== 1) {
+        bad.push(`${file}: ${marked.length} links marked current`);
+        continue;
+      }
+      const href = /href="([^"]+)"/.exec(marked[0][0])[1];
+      if (href !== file) bad.push(`${file}: marks ${href} current`);
+    }
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('links resolve', () => {
+  test('every relative href and src is a file on disk', () => {
+    const bad = [];
+    for (const file of PAGES) {
+      const html = read(file);
+      for (const m of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
+        const ref = m[1];
+        if (/^(https?:|mailto:|#|\/\/)/.test(ref)) continue;
+        const target = path.resolve(DOCS, ref.split('#')[0]);
+        if (!fs.existsSync(target)) bad.push(`${file} -> ${ref}`);
+      }
+    }
+    assert.deepEqual(bad, []);
+  });
+
+  test('every in-page anchor has a target on that page', () => {
+    const bad = [];
+    for (const file of PAGES) {
+      const html = read(file);
+      const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+      for (const m of html.matchAll(/href="#([^"]+)"/g)) {
+        if (!ids.has(m[1])) bad.push(`${file} -> #${m[1]}`);
+      }
+    }
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('source lint', () => {
+  test('docs.css declares no px, rem or em length', () => {
+    const css = stripComments(fs.readFileSync(path.join(DOCS, 'docs.css'), 'utf8'));
+    const found = [...css.matchAll(/(?<![\w-])(\d*\.?\d+)(px|rem|em)(?![\w-])/g)].map((m) => m[0]);
+    assert.deepEqual(found, []);
+  });
+
+  test('docs.css names no literal color', () => {
+    const css = stripComments(fs.readFileSync(path.join(DOCS, 'docs.css'), 'utf8'));
+    const found = [...css.matchAll(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch)\(/g)].map((m) => m[0]);
+    assert.deepEqual(found, []);
+  });
+
+  test('docs.js declares no px, rem or em length and no literal color', () => {
+    const js = stripJsComments(fs.readFileSync(path.join(DOCS, 'docs.js'), 'utf8'));
+    const bad = [
+      ...[...js.matchAll(/(?<![\w-])(\d*\.?\d+)(px|rem|em)(?![\w-])/g)].map((m) => m[0]),
+      ...[...js.matchAll(/#[0-9a-fA-F]{3,6}\b|\b(?:rgba?|hsla?|oklch)\(/g)].map((m) => m[0]),
+    ];
+    assert.deepEqual(bad, []);
+  });
+
+  test('every framework class the docs use is one the framework defines', () => {
+    const defined = frameworkClasses();
+    const bad = [];
+    for (const file of PAGES) {
+      for (const m of read(file).matchAll(/class="([^"]+)"/g)) {
+        for (const cls of m[1].trim().split(/\s+/)) {
+          if (DOCS_OWN.test(cls) || defined.has(cls)) continue;
+          bad.push(`${file}: .${cls}`);
+        }
+      }
+    }
+    assert.deepEqual(bad, []);
+  });
+});
+
+// The milestone itself: every page, measured.
+for (const file of PAGES) {
+  describe(`docs/${file}`, () => {
+    let page;
+    let cell;
+
+    before(async () => {
+      page = await ctx.newPage();
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      await page.goto(`${server.origin}/docs/${file}`);
+      await page.waitForSelector('html[data-docs-ready="1"]');
+      assert.deepEqual(errors, [], 'page script errors');
+      cell = await cellSize(page);
+    });
+
+    after(async () => {
+      await page.close();
+    });
+
+    test('the screen is a whole number of columns', async () => {
+      const [screen] = await rects(page, '.screen');
+      assert.ok(offGrid(screen.w, cell.ch) < TOL, `screen width ${screen.w} is ${screen.w / cell.ch} ch`);
+    });
+
+    test('the page does not overflow horizontally', async () => {
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      assert.ok(over <= 0, `overflows by ${over}px`);
+    });
+
+    // The kitchen sink's selectors, plus the three the docs site adds.
+    const SELECTORS = [
+      '.box', '.col', '[class*="col-"]', '.statusbar', 'th', 'td', 'hr',
+      '.docs-nav', '.docs-main', '.ex-live', 'h1', 'h2', 'p', 'pre',
+    ];
+
+    for (const sel of SELECTORS) {
+      test(`${sel}: on the cell grid`, async () => {
+        const found = await rects(page, sel);
+        if (found.length === 0) return; // not every page has every element
+        const [screen] = await rects(page, '.screen');
+        const bad = [];
+        for (const r of found) {
+          if (offGrid(r.w, cell.ch) >= TOL) {
+            bad.push(`${describeRect(r)} w=${r.w} (${(r.w / cell.ch).toFixed(3)}ch)`);
+          }
+          if (offGrid(r.h, cell.lh) >= TOL) {
+            bad.push(`${describeRect(r)} h=${r.h} (${(r.h / cell.lh).toFixed(3)}lh)`);
+          }
+          // Fixed elements are positioned against the viewport, whose height
+          // is not a whole number of rows, so only their size is on the grid.
+          if (!r.fixed && (offGrid(r.x - screen.x, cell.ch) >= TOL || offGrid(r.y - screen.y, cell.lh) >= TOL)) {
+            bad.push(`${describeRect(r)} at +${(r.x - screen.x).toFixed(2)},+${(r.y - screen.y).toFixed(2)}`);
+          }
+        }
+        assert.deepEqual(bad, []);
+      });
+    }
+
+    test('box borders survive the prose', async () => {
+      const boxes = await borders.boxGeometry(page, '.box');
+      if (boxes.length === 0) return;
+      await hideFixed(page);
+      const png = borders.readShot(await shoot(page, { fullPage: true }));
+      await showFixed(page);
+      assert.deepEqual(borders.missingCorners(png, boxes, cell), []);
+      const drawn = boxes.filter((b) => !/\bbox-ascii\b/.test(b.cls));
+      assert.deepEqual(borders.brokenEdges(png, drawn, cell), []);
+    });
+
+    test('every example renders something', async () => {
+      const live = await page.$$eval('.ex-live', (els) => els.map((el) => ({
+        html: el.innerHTML.trim().length,
+        h: el.getBoundingClientRect().height,
+      })));
+      assert.ok(live.length > 0, 'no examples on the page');
+      assert.deepEqual(live.filter((e) => e.html === 0 || e.h === 0), []);
+    });
+
+    test('every example has exactly one generated listing', async () => {
+      const counts = await page.$$eval('.ex', (els) => els.map((el) => ({
+        live: el.querySelectorAll('.ex-live').length,
+        src: el.querySelectorAll('.ex-src').length,
+      })));
+      assert.ok(counts.length > 0, 'no .ex figures');
+      assert.deepEqual(counts.filter((c) => c.live !== 1 || c.src !== 1), []);
+    });
+
+    // The one that keeps a listing from drifting from the thing above it.
+    test('each listing parses back to its own live markup', async () => {
+      const bad = await page.$$eval('.ex', (els) => {
+        const norm = (html) => {
+          const t = document.createElement('template');
+          t.innerHTML = html;
+          const walk = (node) => {
+            for (const child of [...node.childNodes]) {
+              if (child.nodeType === 3) {
+                const text = child.nodeValue.replace(/\s+/g, ' ');
+                if (text.trim() === '') child.remove();
+                else child.nodeValue = text.trim();
+              } else if (child.nodeType === 8) child.remove();
+              else walk(child);
+            }
+          };
+          walk(t.content);
+          return t.innerHTML;
+        };
+        return els.map((el, i) => {
+          const live = norm(el.querySelector('.ex-live').innerHTML);
+          const listed = norm(el.querySelector('.ex-src').textContent);
+          return live === listed ? null : { i, live, listed };
+        }).filter(Boolean);
+      });
+      assert.deepEqual(bad, []);
+    });
+
+    // Every code block, not only the generated listings: a block that
+    // overflows gets a px-tall scrollbar inside it, which is how a code
+    // listing takes a whole page off the row grid.
+    test('no code line is wider than the block it sits in', async () => {
+      const bad = await page.$$eval('pre', (els) => {
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:absolute;visibility:hidden;width:100ch';
+        document.body.append(probe);
+        const ch = probe.getBoundingClientRect().width / 100;
+        probe.remove();
+        const out = [];
+        for (const el of els) {
+          const cols = Math.round(el.getBoundingClientRect().width / ch) - 2; // 1ch padding each side
+          for (const line of el.textContent.split('\n')) {
+            if (line.length > cols) out.push(`${line.length} > ${cols}: ${line.trim().slice(0, 40)}`);
+          }
+        }
+        return out;
+      });
+      assert.deepEqual(bad, []);
+    });
+  });
+
+  // §11.1, applied to the docs: the page is readable with the script blocked.
+  describe(`docs/${file} with no script`, () => {
+    let page;
+    let cell;
+
+    before(async () => {
+      page = await noJsCtx.newPage();
+      await page.goto(`${server.origin}/docs/${file}`);
+      await page.waitForLoadState('load');
+      // The page's own scripts are blocked, but the spec's evaluate still
+      // runs, so the cell probe can wait for the real font rather than
+      // measuring the fallback.
+      await page.evaluate(() => document.fonts.ready);
+      cell = await cellSize(page);
+    });
+
+    after(async () => {
+      await page.close();
+    });
+
+    test('every example still renders', async () => {
+      const live = await page.$$eval('.ex-live', (els) => els.map((el) => ({
+        html: el.innerHTML.trim().length,
+        h: el.getBoundingClientRect().height,
+      })));
+      assert.ok(live.length > 0, 'no examples on the page');
+      assert.deepEqual(live.filter((e) => e.html === 0 || e.h === 0), []);
+    });
+
+    test('the page carries no empty listing shell', async () => {
+      // The listing is generated, so with the script blocked there must be no
+      // .ex-src in the markup at all — not an empty one waiting to be filled.
+      assert.equal(await page.$$eval('.ex-src', (els) => els.length), 0);
+    });
+
+    test('the grid still holds', async () => {
+      const [screen] = await rects(page, '.screen');
+      assert.ok(offGrid(screen.w, cell.ch) < TOL, `screen width ${screen.w}`);
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      assert.ok(over <= 0, `overflows by ${over}px`);
+      const bad = [];
+      for (const sel of ['.box', '.ex-live', '.docs-main', 'pre', 'p']) {
+        for (const r of await rects(page, sel)) {
+          if (offGrid(r.w, cell.ch) >= TOL) bad.push(`${describeRect(r)} w=${r.w}`);
+          if (offGrid(r.h, cell.lh) >= TOL) bad.push(`${describeRect(r)} h=${r.h}`);
+        }
+      }
+      assert.deepEqual(bad, []);
+    });
+  });
+}

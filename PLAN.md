@@ -448,7 +448,9 @@ webterm/
    with JavaScript disabled.
    Still open for a third pass: a vertical tablist, and a wipe transition
    between tab panels if one can be made cell-exact.
-9. **Docs site** — built with webterm itself.
+9. **Docs site** — built with webterm itself, and held to §2 page by page
+   (§13). Ten static pages, no build step, examples generated from their own
+   live markup; `test/docs.spec.js` runs the grid sweep over every page.
 10. **Generator** — resolve §8 and automate themes.
 
 ## 10. Testing approach
@@ -1110,3 +1112,160 @@ the skin faces every component rather than a page built to flatter it:
   than lucky
 - **the blink is on the clock** — a whole number of ticks, and parked lit under
   both `prefers-reduced-motion` and `data-wt-motion="off"`
+
+## 13. Milestone 9: the docs site
+
+This is the milestone that cannot be faked. README prose can *claim* the grid
+holds. A ten-page site with a nav, a table of contents, long paragraphs, code
+listings and live examples either lands on the character grid or it does not —
+and `test/docs.spec.js` runs the same sweep over every page of it that
+`grid.spec.js` runs over the kitchen sink.
+
+So the site is not a brochure. It is the framework's largest test case, and the
+first thing in the repo that has to be *read* rather than measured. Prose at
+one size, no indents and no proportional type is exactly where a terminal grid
+is least comfortable, which is the point: if webterm cannot document itself
+legibly, the §2 rules are a stunt rather than a framework.
+
+It also closes the loop on §1. The prior art this plan argues with — those
+skins — all document themselves with a *normal* website. Here the docs are the
+proof.
+
+### 13.1 Four decisions, and the rule they follow from
+
+The rule, in the shape of the other layers' rules (§11.1, §12):
+
+> **the docs site uses nothing a reader of the docs could not use.**
+
+No build step, no preprocessor, no framework-only escape hatch. Whatever the
+site needs in order to be a site, the framework has to already provide — or
+the site goes without it. Four consequences:
+
+**No build step, so no partials.** The header and nav are literal HTML,
+repeated verbatim in every page. That is duplication, and duplication rots, so
+`docs.spec.js` extracts the block between two sentinel comments from every page
+and asserts the blocks are byte-identical apart from the one `aria-current`
+attribute. The copies stay honest because a test fails the moment two of them
+disagree.
+
+**Pages are plain files and links.** One page per topic, `<a href>` between
+them, the current page marked `aria-current="page"`. No router and no
+client-side nav — the site works from `file://` for everything but the fonts,
+over `npm run serve` locally, and from `/docs` on GitHub Pages, with no
+configuration in any of the three.
+
+**Examples have one source.** An example is *live markup* on the page; the
+listing under it is generated at runtime from that markup's own `innerHTML`.
+Two copies of the same snippet is the one duplication a docs site always has
+and always gets wrong, and the framework's own rule (§11.1 — the CSS never
+depends on the JS) says which copy has to be the real one: with the script
+blocked, every example still renders, and only the listings are missing. The
+spec checks both halves — that the page renders with JavaScript off, and that
+with it on each listing round-trips to markup equal to the live block.
+
+**The docs CSS is held to the grid layer's lint.** `docs/docs.css` exists —
+a site needs a sidebar, a prose measure and a listing style — and it is linted
+exactly like `src/grid/`: no `px`, no `rem`, no `em`, no literal color. The
+docs get no privileges the framework does not grant.
+
+### 13.2 Structure
+
+```
+docs/
+  index.html      what it is, the quick start, the rules (§2)
+  layout.html     .screen, .row/.col, spacing, breakpoints in columns
+  boxes.html      .box, titles, edges, dividers, ascii, nesting
+  type.html       hierarchy without size, lists, hr, tables
+  forms.html      buttons, inputs, selects, checks, fields
+  components.html badges, alerts, nav, statusbar, progress, kv
+  behavior.html   layer 4, the nine components, and the JS-off form of each
+  theming.html    the variable contract, the nine themes, live picker, size
+  skin.html       layer 3, the .crt glass
+  about.html      limitations, development, test status, license
+  docs.css        the site's own chrome — linted like the grid layer
+  docs.js         listing generation and the theme picker; optional by design
+```
+
+Ten pages, two assets, no index of indexes. The content is largely a port of
+the README sections (which stay — the README is what a reader sees on GitHub),
+with the examples turned live.
+
+Layout per page: a fixed single-column shell. `.screen` holds a header strip,
+a nav row of inline links, the content, and a `.statusbar` pinned to the
+bottom showing the page's column count — the same readout the test pages
+carry, because on a docs site it doubles as the demo.
+
+### 13.3 The example pattern
+
+```html
+<figure class="ex">
+  <figcaption>A box with a title</figcaption>
+  <div class="ex-live">
+    <div class="box">
+      <span class="box-edge"></span>
+      <span class="box-title">Hosts</span>
+      <p>alpha</p>
+    </div>
+  </div>
+</figure>
+```
+
+`docs.js` walks every `.ex-live`, takes its `innerHTML`, strips the common
+leading indent, and inserts `<pre class="ex-src">` after it. Consequences
+worth naming:
+
+- the listing is the *parsed* markup, not the file's bytes, so it shows what
+  the browser built — attribute order normalized, no comments, self-closing
+  tags expanded. For a docs site that is a feature: the reader is shown
+  markup that is known to produce the thing directly above it.
+- a listing is `pre-wrap`, never a horizontal scroller. An inner scroller
+  needs a scrollbar, a scrollbar is px, and px is off the grid. The cost is
+  that long lines wrap mid-token, so the spec asserts no listing line exceeds
+  the content measure and the examples are written to fit.
+- `.ex-live` is a plain block with no padding, so an example's own geometry is
+  on the grid and the grid sweep covers examples for free.
+
+### 13.4 What the spec checks
+
+`test/docs.spec.js`, over **every** `docs/*.html` the directory holds, so a
+page added later cannot skip the suite:
+
+- **the grid holds, page by page** — the `lib/grid.js` sweep from
+  `grid.spec.js`: integer `ch` widths, integer `lh` heights, every element
+  starting on a cell boundary, `.screen` a whole column count, and no
+  horizontal overflow. This is the milestone.
+- **borders survive prose** — `lib/borders.js` corner and continuity checks on
+  every box on every page, including the boxes that wrap live examples
+- **the chrome is one chrome** — the sentinel-delimited header/nav block is
+  byte-identical across all ten pages but for `aria-current`
+- **the nav is complete and correct** — every page is linked from the nav,
+  every nav link resolves to a file that exists, and each page's
+  `aria-current` points at itself
+- **no dead links** — every relative `href`/`src` in every page resolves on
+  disk, anchors included
+- **JavaScript off, the site still reads** — the whole site loaded with
+  scripts blocked: every `.ex-live` renders, the grid sweep still passes, and
+  no page shows an empty listing shell
+- **examples round-trip** — with the script on, each `.ex-src` text parses to
+  markup equal to its `.ex-live` content, so a listing can never drift from
+  the thing it documents
+- **listings fit** — no generated line wider than the content measure
+- **source lint** — `docs.css`: no px/rem/em, no literal color. `docs.js`: no
+  px/rem/em length and no color literal, the same lint as layer 4.
+- **the docs link what they document** — every component class the docs
+  mention in a listing exists in `src/`, which catches a renamed class the
+  prose kept
+
+### 13.5 Phases
+
+Spec first at every step, as in §11.8.
+
+| phase | contents | why in this order |
+|-------|----------|-------------------|
+| 0 | `docs.css`, `docs.js`, the chrome, `index.html`, and all of `docs.spec.js` that does not need the other nine pages | the shell and the harness; every page after it is cheap and arrives already measured |
+| 1 | `layout.html`, `boxes.html` | the two pages whose own subject is the grid, so the sweep is doing real work from the start |
+| 2 | `type.html`, `forms.html` | prose and tables are the hardest legibility case; controls are the hardest geometry case |
+| 3 | `components.html` | the largest port, and it is mostly mechanical once phase 2 fixes the example pattern |
+| 4 | `behavior.html` | needs the real layer-4 bundle on the page and the JS-off pass to still hold |
+| 5 | `theming.html`, `skin.html` | both need a live picker, which is the one place `docs.js` grows |
+| 6 | `about.html`, the nav-completeness and dead-link checks at full size, README and `test/index.html` cross-links | closes the milestone |
