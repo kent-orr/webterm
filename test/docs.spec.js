@@ -172,6 +172,21 @@ describe('the chrome is one chrome', () => {
   });
 });
 
+describe('the border exception is one exception', () => {
+  // .docs-partial opts a box out of the PNG border sweep. It exists for a
+  // single demo; left unchecked it would be the hole the whole suite leaks
+  // through, so the suite counts it.
+  test('.docs-partial appears exactly once, on boxes.html', () => {
+    const uses = [];
+    for (const file of PAGES) {
+      for (const m of read(file).matchAll(/class="[^"]*\bdocs-partial\b[^"]*"/g)) {
+        uses.push(`${file}: ${m[0]}`);
+      }
+    }
+    assert.deepEqual(uses, ['boxes.html: class="box docs-partial"']);
+  });
+});
+
 describe('links resolve', () => {
   test('every relative href and src is a file on disk', () => {
     const bad = [];
@@ -299,7 +314,11 @@ for (const file of PAGES) {
     }
 
     test('box borders survive the prose', async () => {
-      const boxes = await borders.boxGeometry(page, '.box');
+      // .docs-partial is the one deliberate exception: boxes.html shows what
+      // a box without its .box-edge span looks like, and the point of that
+      // demo is the two edges it is missing.
+      const boxes = (await borders.boxGeometry(page, '.box'))
+        .filter((b) => !/\bdocs-partial\b/.test(b.cls));
       if (boxes.length === 0) return;
       await hideFixed(page);
       const png = borders.readShot(await shoot(page, { fullPage: true }));

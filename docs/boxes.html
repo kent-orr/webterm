@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — boxes</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html">layout</a>
+    <a href="boxes.html" aria-current="page">boxes</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="boxes">Boxes</h2>
+
+  <p>Rule 4: a border is a glyph, never <code>border: 1px</code>. That is the
+  rule with the largest consequences, because CSS has no way to repeat a
+  string a computed number of times — so a box cannot simply be told to draw
+  <code>─</code> across its top.</p>
+
+  <h3 id="markup">The markup</h3>
+
+  <p>A box needs one empty <code>&lt;span class="box-edge"&gt;</code>. An
+  element has two pseudo-elements and a border needs four strips, so the span
+  supplies the other two.</p>
+
+  <figure class="ex">
+    <figcaption>a box</figcaption>
+    <div class="ex-live">
+      <div class="box">
+        <span class="box-edge"></span>
+        <span class="box-title">Title</span>
+        <p>Content stays a direct child, so .box can also be a flex or
+        grid container.</p>
+      </div>
+    </div>
+  </figure>
+
+  <p>Leave the span out and the box draws only its top and left edges. That is
+  deliberate: a visible reminder beats a silent misalignment.</p>
+
+  <figure class="ex">
+    <figcaption>the same box with no box-edge</figcaption>
+    <div class="ex-live">
+      <div class="box docs-partial">
+        <p>Two edges. Something is missing, and you can see which.</p>
+      </div>
+    </div>
+  </figure>
+
+  <h3 id="strips">How the border is drawn</h3>
+
+  <p>Each edge is one over-long glyph run, clipped to the box by
+  <code>overflow: hidden</code>. Clipping eats the far end of a run, so the
+  four edges are arranged cyclically and each owns the corner at the end it is
+  anchored to:</p>
+
+<pre><code>  ┌─────────▶    top:    anchored left,   owns ┌
+  ▲        │     right:  anchored top,    owns ┐
+  │        ▼     bottom: anchored right,  owns ┘
+  ◀─────────┘    left:   anchored bottom, owns └</code></pre>
+
+  <p>Each strip stops one cell short of the next edge's corner, so the four
+  are disjoint: no two glyphs are ever painted into the same cell and no
+  masking is needed. The failure mode is a dropped corner or a missing tail,
+  which geometry cannot see — so the test suite screenshots every box on every
+  page of this site and sweeps the border cells for ink.</p>
+
+  <p>The runs cover 256 columns and 128 rows. A box larger than that loses the
+  tail of its border; raise the copy count in
+  <code>src/grid/glyphs.css</code> if you need more.</p>
+
+  <h3 id="styles">Border styles</h3>
+
+  <p>Five, including the ASCII one rule 5 asks for. The style is a class on
+  the box; nothing else changes.</p>
+
+  <figure class="ex">
+    <figcaption>the five styles</figcaption>
+    <div class="ex-live">
+      <div class="row">
+        <div class="col-24">
+          <div class="box">
+            <span class="box-edge"></span>
+            <p>.box</p>
+          </div>
+        </div>
+        <div class="col-24">
+          <div class="box box-double">
+            <span class="box-edge"></span>
+            <p>.box-double</p>
+          </div>
+        </div>
+        <div class="col-24">
+          <div class="box box-round">
+            <span class="box-edge"></span>
+            <p>.box-round</p>
+          </div>
+        </div>
+        <div class="col-24">
+          <div class="box box-heavy">
+            <span class="box-edge"></span>
+            <p>.box-heavy</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="ex">
+    <figcaption>ascii, for a page that cannot count on box-drawing</figcaption>
+    <div class="ex-live">
+      <div class="box box-ascii">
+        <span class="box-edge"></span>
+        <span class="box-title">ASCII</span>
+        <p>Plus signs and pipes. Same cells, same geometry.</p>
+      </div>
+    </div>
+  </figure>
+
+  <h3 id="modifiers">Modifiers</h3>
+
+  <table class="table-zebra">
+    <colgroup>
+      <col style="width: 18ch"><col style="width: 54ch">
+    </colgroup>
+    <thead>
+      <tr><th>class</th><th>effect</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>.box-title</code></td><td>a label in the top border row</td></tr>
+      <tr><td><code>.box-title-right</code></td><td>the label at the other end</td></tr>
+      <tr><td><code>.box-fill</code></td><td>filled interior</td></tr>
+      <tr><td><code>.box-tight</code></td><td>no gutter, for cell-aligned content</td></tr>
+      <tr><td><code>.box-divide</code></td><td>a rule across the interior</td></tr>
+    </tbody>
+  </table>
+
+  <p class="mt-1">The title is a real element rather than part of the top run,
+  so it can be bold or colored while the border stays dim. Its background
+  masks the run underneath it, which is also why a filled box has to tell the
+  title what color it is sitting on — <code>.box-fill</code> sets
+  <code>--box-bg</code> for exactly that.</p>
+
+  <figure class="ex">
+    <figcaption>fill, a right-hand title and a divider</figcaption>
+    <div class="ex-live">
+      <div class="box box-fill">
+        <span class="box-edge"></span>
+        <span class="box-title box-title-right">status</span>
+        <p>Above the divider.</p>
+        <div class="box-divide"></div>
+        <p>Below it. The rule reaches back across the gutter but never
+        into the border cells, which the side runs own.</p>
+      </div>
+    </div>
+  </figure>
+
+  <p><code>.box-tight</code> drops the one-cell gutter, which is what a table
+  wants: its own padding cells already carry the column separators, so a
+  second gutter would put two blank cells between the border and the first
+  character.</p>
+
+  <figure class="ex">
+    <figcaption>a tight box around a table</figcaption>
+    <div class="ex-live">
+      <div class="box box-tight">
+        <span class="box-edge"></span>
+        <span class="box-title">Jobs</span>
+        <table class="table-zebra">
+          <colgroup>
+            <col style="width: 14ch"><col style="width: 12ch"><col style="width: 10ch">
+          </colgroup>
+          <thead>
+            <tr><th>job</th><th>state</th><th class="num">secs</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>reindex</td><td class="fg-ok">done</td><td class="num">12</td></tr>
+            <tr><td>vacuum</td><td class="fg-warn">slow</td><td class="num">914</td></tr>
+            <tr><td>backup</td><td class="fg-error">failed</td><td class="num">3</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </figure>
+
+  <h3 id="nesting">Nesting</h3>
+
+  <p>A box inside a box loses four cells of width — one border and one gutter
+  on each side — and both are still whole, so nesting is safe to any depth the
+  width allows.</p>
+
+  <figure class="ex">
+    <figcaption>two deep</figcaption>
+    <div class="ex-live">
+      <div class="box">
+        <span class="box-edge"></span>
+        <span class="box-title">outer</span>
+        <div class="box box-double">
+          <span class="box-edge"></span>
+          <span class="box-title">inner</span>
+          <p>four cells narrower, still on the grid</p>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

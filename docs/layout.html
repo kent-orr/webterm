@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — layout</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html" aria-current="page">layout</a>
+    <a href="boxes.html">boxes</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="layout">Layout</h2>
+
+  <p>Three things: a screen that snaps to a whole column count, rows that
+  gutter by one cell, and columns measured in cells rather than twelfths.</p>
+
+  <h3 id="screen">The screen</h3>
+
+  <p><code>.screen</code> rounds its own width down to a whole number of cells
+  and centers what is left. Everything else assumes it: a child that fills its
+  parent is on the grid because the parent is.</p>
+
+<pre><code>.screen {
+  width: calc(round(down, 100%, 1ch));
+  margin: 0 auto;
+  container-type: inline-size;
+}</code></pre>
+
+  <p>The rounding is of the parent's resolved width, not of
+  <code>100vw</code>. <code>100vw</code> includes the classic scrollbar, so on
+  a page tall enough to scroll the rounded width would be wider than the
+  viewport and the last column would sit underneath the scrollbar.</p>
+
+  <p>It is also a container, which is what makes breakpoints in columns
+  possible — see below. For a classic fixed terminal there are
+  <code>.screen-80</code>, <code>.screen-100</code> and
+  <code>.screen-120</code>.</p>
+
+  <h3 id="rows">Rows and columns</h3>
+
+  <p>A row is a flex row with a one-cell gutter, so N columns lose N−1 cells
+  to gaps. A column is either a fixed number of cells —
+  <code>.col-4</code> through <code>.col-40</code> — or <code>.col</code>,
+  which takes what is left.</p>
+
+  <figure class="ex">
+    <figcaption>a sidebar and a body</figcaption>
+    <div class="ex-live">
+      <div class="row">
+        <div class="col-24">
+          <div class="box">
+            <span class="box-edge"></span>
+            <span class="box-title">col-24</span>
+            <p>exactly 24 cells</p>
+          </div>
+        </div>
+        <div class="col">
+          <div class="box">
+            <span class="box-edge"></span>
+            <span class="box-title">col</span>
+            <p>takes the rest, less the one-cell gutter</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <p>Mixing a flexible column into a row is where fractional cells get in. One
+  <code>.col</code> beside fixed columns is always safe: the remainder is a
+  whole number because everything taken out of the row was. Two
+  <code>.col</code> children splitting an odd remainder are not — the
+  framework will not stop you, and half a cell is visible at the first border
+  glyph. Prefer fixed widths and one filler.</p>
+
+  <figure class="ex">
+    <figcaption>three columns, all whole</figcaption>
+    <div class="ex-live">
+      <div class="row">
+        <div class="col-32">
+          <div class="box box-tight">
+            <span class="box-edge"></span>
+            <p>32</p>
+          </div>
+        </div>
+        <div class="col-32">
+          <div class="box box-tight">
+            <span class="box-edge"></span>
+            <p>32</p>
+          </div>
+        </div>
+        <div class="col">
+          <div class="box box-tight">
+            <span class="box-edge"></span>
+            <p>the remainder</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <h3 id="breakpoints">Breakpoints are columns</h3>
+
+  <p>Rule 8. A terminal has no pixels to break at, and the number that matters
+  is how many characters fit. Because <code>.screen</code> is a container, a
+  row can ask about its own width in columns instead of asking the
+  viewport about its width in pixels:</p>
+
+<pre><code>@container (max-width: 63ch) {
+  .row { display: block; }
+  .row &gt; * + * { margin-top: 1lh; }
+}</code></pre>
+
+  <p>That rule ships: below 64 columns a row stacks, because a 24-column
+  sidebar beside anything is unreadable there. Narrow this window and the
+  example above becomes two stacked boxes — and the column count in the status
+  bar is the number the rule is testing.</p>
+
+  <h3 id="spacing">Spacing</h3>
+
+  <p>Spacing is in whole cells, and there are not many helpers because there
+  is not much to choose from: one row or two.</p>
+
+  <table class="table-zebra">
+    <colgroup>
+      <col style="width: 14ch"><col style="width: 50ch">
+    </colgroup>
+    <thead>
+      <tr><th>class</th><th>effect</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>.mt-1</code></td><td>margin-top: 1lh</td></tr>
+      <tr><td><code>.mt-2</code></td><td>margin-top: 2lh</td></tr>
+      <tr><td><code>.mb-1</code></td><td>margin-bottom: 1lh</td></tr>
+      <tr><td><code>.mb-2</code></td><td>margin-bottom: 2lh</td></tr>
+      <tr><td><code>.pad</code></td><td>padding: 1lh 1ch</td></tr>
+      <tr><td><code>.stack</code></td><td>one blank row between children</td></tr>
+      <tr><td><code>.center</code></td><td>text-align: center</td></tr>
+      <tr><td><code>.right</code></td><td>text-align: right</td></tr>
+    </tbody>
+  </table>
+
+  <p class="mt-1">There is no <code>.mt-3</code>. Three blank rows is not a
+  spacing decision, it is a sign the page wants a box.</p>
+
+  <figure class="ex">
+    <figcaption>a stack</figcaption>
+    <div class="ex-live">
+      <div class="stack">
+        <div class="box box-tight">
+          <span class="box-edge"></span>
+          <p>first</p>
+        </div>
+        <div class="box box-tight">
+          <span class="box-edge"></span>
+          <p>second</p>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>
