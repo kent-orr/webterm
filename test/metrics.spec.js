@@ -11,6 +11,7 @@ const calibration = require('./calibration.json');
 const { openMetrics } = require('./lib/metrics-page');
 
 const FAMILY = {
+  'julia-mono': 'JuliaMono',
   'jetbrains-mono': 'JetBrains Mono',
   iosevka: 'Iosevka',
   'dejavu-sans-mono': 'DejaVu Sans Mono',

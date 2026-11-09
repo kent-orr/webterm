@@ -66,10 +66,11 @@
    * Only ASCII and U+2500-259F appear here, and that is a measurement rather
    * than a preference. The braille spinner every terminal tool uses (ora,
    * cli-spinners) is 12px wide in a 10px cell in JetBrains Mono and DejaVu
-   * Sans Mono — correct only in Iosevka — and the arc, circle and triangle
-   * sets each fail in a different subset of the three. U+2500-259F is the
-   * range the bundled fonts cover in full, and the only one where a frame
-   * lands on a cell in all three. behavior.spec.js measures every glyph here
+   * Sans Mono, neither of which has the block — correct only in Iosevka and
+   * JuliaMono — and the arc, circle and triangle sets each fail in a different
+   * subset of the four. U+2500-259F is the range the bundled fonts cover in
+   * full, and the only one where a frame lands on a cell in all four.
+   * behavior.spec.js measures every glyph here
    * against 1ch in each font, so a tempting addition fails a test rather than
    * silently breaking the grid.
    */

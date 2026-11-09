@@ -166,7 +166,7 @@ describe('the README enumerates the shipped sets', () => {
     // The bundled fonts are not ours to relicense, so the README has to say
     // the MIT grant stops at the framework.
     assert.match(readme, /`LICENSE` does not cover them/);
-    for (const dir of ['jetbrains-mono', 'iosevka', 'dejavu-sans-mono']) {
+    for (const dir of ['julia-mono', 'jetbrains-mono', 'iosevka', 'dejavu-sans-mono']) {
       assert.ok(
         fs.existsSync(path.join(root, 'fonts', dir, 'LICENSE')),
         `fonts/${dir}/LICENSE is missing but the README points at it`,

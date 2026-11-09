@@ -2,7 +2,8 @@
  * webterm grid tokens.
  *
  * One font, one size, one line-height for the whole document (PLAN §2.2).
- * Put exactly one font class on <html>.
+ * Put exactly one font class on <html>. With none, the defaults below are
+ * JuliaMono's, so an unclassed page is the same grid as .font-julia-mono.
  *
  * Line-height is a whole number of CSS px at every font-size:
  *
@@ -21,8 +22,8 @@
 
 :root {
   --wt-font-size: 16px;            /* the only px in the framework */
-  --wt-font-family: "JetBrains Mono", monospace;
-  --wt-lh-ratio: 1.291;
+  --wt-font-family: "JuliaMono", monospace;
+  --wt-lh-ratio: 1.157;
   --wt-line-height: round(down, calc(var(--wt-font-size) * var(--wt-lh-ratio)), 1px);
 
   font-family: var(--wt-font-family);
@@ -45,6 +46,12 @@
    * duration. 60ms is about 16 cells a second.
    */
   --wt-tick: 60ms;
+}
+
+/* 16px -> 18px rows. Calibrated: JuliaMono 0.63.2. The default. */
+:root.font-julia-mono {
+  --wt-font-family: "JuliaMono", monospace;
+  --wt-lh-ratio: 1.157;
 }
 
 /* 16px -> 20px rows. Calibrated: JetBrains Mono 2.304. */

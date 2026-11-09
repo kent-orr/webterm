@@ -42,7 +42,7 @@ jsDelivr serves the repo directly. Two stylesheets and one class on `<html>`:
 
 ```html
 <!doctype html>
-<html lang="en" class="font-jetbrains-mono">
+<html lang="en" class="font-julia-mono">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -119,15 +119,17 @@ layer, and an unlayered rule beats a layered one at any order.
 
 ### Picking a font
 
-Put exactly one font class on `<html>`:
+Put exactly one font class on `<html>`. `font-julia-mono` is the default: a
+page that sets no class gets JuliaMono's family and ratio from `:root`.
 
 | class                   | font             | row at 16px |
 |-------------------------|------------------|-------------|
+| `font-julia-mono`       | JuliaMono        | 18px        |
 | `font-jetbrains-mono`   | JetBrains Mono   | 20px        |
 | `font-iosevka`          | Iosevka          | 19px        |
 | `font-dejavu-sans-mono` | DejaVu Sans Mono | 18px        |
 
-All three are bundled as full-coverage woff2. Do not substitute a Google Fonts
+All four are bundled as full-coverage woff2. Do not substitute a Google Fonts
 or Fontsource build of JetBrains Mono: those omit U+2500–259F, so every border
 silently falls back to another font with different metrics and the seams show.
 
@@ -348,9 +350,10 @@ a time. Five sets ship: `.spin-line`, `.spin-quad`, `.spin-half`, `.spin-bar`
 and `.spin-shade`.
 
 There is deliberately no braille spinner. It is what every terminal tool uses,
-and it is 12px wide in a 10px cell in JetBrains Mono and DejaVu Sans Mono —
-correct only in Iosevka. The arc, circle and triangle sets each fail in a
-different subset of the three. A frame set may use ASCII and U+2500–259F, which
+and it is 12px wide in a 10px cell in JetBrains Mono and DejaVu Sans Mono,
+neither of which has the block at all — correct only in Iosevka and JuliaMono.
+The arc, circle and triangle sets each fail in a different subset of the
+four. A frame set may use ASCII and U+2500–259F, which
 is the range the bundled fonts cover in full, and the spec measures every glyph
 against `1ch` in each font.
 
@@ -521,7 +524,7 @@ count from `data-wt-duration`, so a twenty-row region opens in the same time as
 a two-row one.
 
 The marker is `+`/`-` rather than `▸`/`▾`: those are in Geometric Shapes, which
-is outside the range that measures a single cell in all three bundled fonts.
+is outside the range that measures a single cell in all four bundled fonts.
 `--wt-collapse-closed` and `--wt-collapse-open` take a different pair if your
 font has one. A shared `name` attribute makes the browser close the sibling —
 an accordion, free — and the module watches `toggle` so a sibling closed that
@@ -678,7 +681,7 @@ from it:
 ```
 
 Each font's `--wt-lh-ratio` is the largest value that stays seam-free across
-10–32px, so any size in that range works, but 16px is where all three fonts hit
+10–32px, so any size in that range works, but 16px is where all four fonts hit
 their per-size optimum.
 
 ## Skin
@@ -792,21 +795,33 @@ widths have to match what ships. Rename a class and the README fails with it.
 | `themes.spec.js`                      | 206 pass — theme contract and contrast       |
 | `readme.spec.js`                      | 8 pass — every class, set and license claim this file makes |
 | `grid.spec.js` + `default.spec.js`    | 51 pass — integer cells, continuous borders, the default paints and a `<link>` beats it |
-| `behavior.spec.js`                    | 180 pass — the behavior layer, cell-exact mid-animation, and the whole page with scripts disabled |
+| `behavior.spec.js`                    | 183 pass — the behavior layer, cell-exact mid-animation, and the whole page with scripts disabled |
 | `skin.spec.js`                        | 27 pass — the skin moves nothing, and is inert until it is applied |
 | `docs.spec.js`                        | 376 pass — the docs site, page by page, with and without JavaScript |
-| `metrics.spec.js`                     | 240 pass, **100 fail** — known, see below    |
+| `pages.spec.js`                       | 8 pass — the published root, and every asset the site asks for is tracked |
+| `metrics.spec.js`                     | 319 pass, **129 fail** — known, see below    |
 
-The 100 failures are a wrong assertion, not a layout bug. `metrics.spec.js`
-asserts `80ch == 80 × advanceEm × font-size` from the font tables, but Chromium
-lays monospace text out with whole-px advances, so `1ch = round(advanceEm ×
-size)` — a 10px cell at 16px JetBrains Mono, not 9.6px. The grid property that
-matters still holds (N cells is N equal whole-px columns, regular and bold, no
-drift with N); the em-advance prediction the test checks is not what the
-browser uses. See PLAN §8.
+The 129 failures are two assertions that ask for more than the renderer can
+give, not a layout bug.
 
-`npm test` runs every spec in one process — 1188 tests, 1088 pass, the same
-100 fail, repeatably.
+Seventy of them assert `80ch == 80 × advanceEm × font-size` from the font
+tables, but Chromium lays monospace text out with whole-px advances, so
+`1ch = round(advanceEm × size)` — a 10px cell at 16px JetBrains Mono, not
+9.6px. The grid property that matters still holds (N cells is N equal whole-px
+columns, regular and bold, no drift with N); the em-advance prediction the test
+checks is not what the browser uses. See PLAN §8.
+
+The other fifty-nine are the horizontal-seam check at sizes where the cell is
+already a whole number of device pixels. What it finds is the quantization
+§4.7 describes — `█` holding a ~0.09 loss at the cell boundary, `═` and `━`
+about 0.055 — which is a property of painting a glyph at its em advance inside
+a rounded cell, not of this framework's lengths.
+
+JuliaMono fails the same 29 as JetBrains Mono, which is what a font with the
+same 0.6em advance should do.
+
+`npm test` runs every spec in one process — 1307 tests, 1178 pass, the same
+129 fail, repeatably.
 
 The intermittent cancellations this file used to warn about were
 `Page.captureScreenshot` answering "Unable to capture screenshot" on the first
@@ -817,13 +832,17 @@ twice — the screenshot is an input to the check, not the check.
 
 ## Limitations
 
-- **Calibration is Chromium-only.** Firefox and Safari round font metrics
-  differently and have not been measured.
+- **Calibration is Chromium-only, and build-specific.** Firefox and Safari
+  round font metrics differently and have not been measured. Even within
+  Chromium the measured limit moves with the build: re-sweeping an unchanged
+  tree on the same reported version has come back 1px more permissive on a
+  third of the rows, with no 16px row affected. The shipped ratios are the
+  stricter measurement.
 - **Faint horizontal seams at some font sizes.** A glyph is painted at its
   natural em advance inside a cell rounded up to a whole px, and the difference
   stays unpainted. Sizes where `advanceEm × size` is an integer (15, 20, 25px
-  for JetBrains Mono; even sizes for Iosevka) are clean for the line glyphs;
-  `█` keeps a ~0.09px loss even then. Avoid long runs of `█`.
+  for JetBrains Mono and JuliaMono; even sizes for Iosevka) are clean for the
+  line glyphs; `█` keeps a ~0.09px loss even then. Avoid long runs of `█`.
 - **Flex distribution can land on fractional `ch`** when several `.col` share
   leftover space. Use `.col-N` where exactness matters.
 - **No wide-glyph support.** CJK and emoji occupy two cells; nothing accounts
@@ -858,5 +877,6 @@ twice — the screenshot is an input to the check, not the check.
 MIT — see `LICENSE`.
 
 Bundled fonts keep their own licenses, and `LICENSE` does not cover them:
-JetBrains Mono and Iosevka under OFL-1.1, DejaVu Sans Mono under the Bitstream
-Vera license. Each license file sits in that font's directory under `fonts/`.
+JuliaMono, JetBrains Mono and Iosevka under OFL-1.1, DejaVu Sans Mono under the
+Bitstream Vera license. Each license file sits in that font's directory under
+`fonts/`.

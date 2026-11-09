@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="font-jetbrains-mono">
+<html lang="en" class="font-julia-mono">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -28,6 +28,7 @@
 <body>
 <section id="panel">
   <label>font <select id="in-font">
+    <option value="julia-mono">JuliaMono</option>
     <option value="jetbrains-mono">JetBrains Mono</option>
     <option value="iosevka">Iosevka</option>
     <option value="dejavu-sans-mono">DejaVu Sans Mono</option>
@@ -71,6 +72,7 @@
     ["M", ""], ["0", "bold"], ["─", "bold"], ["█", "bold"],
   ];
   const FONTS = {
+    "julia-mono": "JuliaMono",
     "jetbrains-mono": "JetBrains Mono",
     "iosevka": "Iosevka",
     "dejavu-sans-mono": "DejaVu Sans Mono",
@@ -178,7 +180,7 @@
   }
 
   const initial = {
-    font: params.get("font") || "jetbrains-mono",
+    font: params.get("font") || "julia-mono",
     size: params.has("size") ? Number(params.get("size")) : null,
     lh: params.has("lh") ? Number(params.get("lh")) : null,
     offset: params.has("offset") ? Number(params.get("offset")) : 0,

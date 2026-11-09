@@ -61,7 +61,7 @@
    * that does nothing until this file runs, so a page with no script shows
    * the control in its default position and the default it describes.
    */
-  const FONTS = ['font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
+  const FONTS = ['font-julia-mono', 'font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
 
   const themePicker = document.getElementById('docs-theme');
   const themeLink = document.getElementById('docs-theme-link');

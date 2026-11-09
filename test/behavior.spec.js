@@ -621,7 +621,7 @@ describe('scroll lock', () => {
 // range the README guarantees the bundled fonts cover in full. These two tests
 // are what keep a tempting charset out.
 describe('frame sets', () => {
-  const FONTS = ['font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
+  const FONTS = ['font-julia-mono', 'font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
   const SETS = ['line', 'quad', 'half', 'bar', 'shade'];
 
   test('glyphs.css declares a frame run for every shipped spinner', () => {
@@ -1030,7 +1030,7 @@ describe('loading', () => {
 // text resolves out of noise with no layout shift at any frame. Everything in
 // this suite is that claim, taken apart.
 describe('charsets', () => {
-  const FONTS = ['font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
+  const FONTS = ['font-julia-mono', 'font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
 
   test('the charsets are exposed and non-empty', async () => {
     const sets = await page.evaluate(() => Object.fromEntries(
@@ -2394,7 +2394,7 @@ describe('modal', () => {
 // what every other framework does here, and it puts the page below the
 // component mid-row on all but a handful of frames.
 describe('collapse', () => {
-  const FONTS = ['font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
+  const FONTS = ['font-julia-mono', 'font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
 
   // The marker is a glyph on the grid, so it is held to the same measured
   // range as the spinner frames: ASCII and U+2500-259F (glyphs.css). That

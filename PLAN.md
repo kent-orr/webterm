@@ -75,7 +75,7 @@ size, derived from a per-font calibrated ratio (§4.7):
 ```css
 :root {
   --wt-font-size: 16px;            /* the only px in the framework */
-  --wt-lh-ratio: 1.291;            /* per font, see §4.7 */
+  --wt-lh-ratio: 1.157;            /* per font, see §4.7 */
   --wt-line-height: round(down, calc(var(--wt-font-size) * var(--wt-lh-ratio)), 1px);
   font-family: var(--wt-font-family);
   font-size: var(--wt-font-size);
@@ -191,6 +191,7 @@ Measured in Chromium with `test/metrics.html` + `tools/calibrate.js`
 
 | font             | `--wt-lh-ratio` | 16px row | theory (font tables) |
 |------------------|-----------------|----------|----------------------|
+| JuliaMono        | 1.157           | 18px     | blocks 1.175, lines 1.674 |
 | JetBrains Mono   | 1.291           | 20px     | blocks 1.32, lines 1.52 |
 | Iosevka          | 1.199           | 19px     | blocks 1.18 (hhea), lines 1.23 |
 | DejaVu Sans Mono | 1.153           | 18px     | blocks & lines 1.18  |
@@ -202,13 +203,25 @@ Findings:
   integer N(size) with ~0.02px slack. A fixed unitless ratio either wastes a
   pixel at some sizes or seams at others. Hence the `round(down, …, 1px)`
   formula: K is the largest ratio with floor(size·K) ≤ N(size) for every
-  size 10–32px. At 16px all three fonts hit their per-size optimum; other
+  size 10–32px. At 16px all four fonts hit their per-size optimum; other
   sizes lose at most 1px.
 - **Blocks bind, not lines.** `█` spans exactly ascent+descent, so it is the
   tighter constraint. We require `█` to stack cleanly, as in a real terminal.
 - **Chromium ignores USE_TYPO_METRICS for Iosevka**: measured limits match
   the hhea prediction, not typo. Theory in `fonts/metrics.json`
   (`tools/font-limits.py`) is a guide; the empirical sweep is authoritative.
+- **The limit depends on the Chromium build, not just the version.** The
+  three ratios above are the milestone-1 run. Re-sweeping the same tree on
+  the same reported Chromium version (153.0.8010.12) later measured 1px more
+  permissive on 160 of 414 rows — no 16px row moved, so nothing the framework
+  ships at its default size changes, but the K digits do. Glyph ink height is
+  identical in both (an isolated `│` is the same pixel count at every line
+  box), so this is rasterization, not layout. Consequence: a K is only as
+  reproducible as the binary that measured it, and `test/calibration.json`
+  records which run each font came from. JuliaMono's K was measured on the
+  later build, and it also stays under the font-table block limit (1.157 vs
+  1.175) at every size, which is the one bound that does not depend on a
+  renderer.
 - **`1ch` is a whole px, and is not the font's em advance.** Chromium
   153.0.8010.12 here lays monospace text out with whole-px advances, so
   `1ch = round(advanceEm × font-size)` at every size — 16px JetBrains Mono
@@ -220,7 +233,7 @@ Findings:
   silently fall back to another font. We bundle the official v2.304 build
   (`fonts/`).
 - **Horizontal seams are a font/size property, not line-height.** Glyphs that
-  end exactly on the advance (`█` in all three fonts; `─`/`┼` in Iosevka)
+  end exactly on the advance (`█` in all four fonts; `─`/`┼` in Iosevka)
   leave a faint lighter column at the cell boundary. The cause is the
   quantization above, not fractional cells: the glyph is *painted* at its
   natural em advance inside a cell rounded up to a whole px, so the
@@ -424,7 +437,7 @@ webterm/
 
 ## 9. Milestones
 
-1. **Metrics** — `test/metrics.html`, calibrate 3 fonts, lock `line-height`. ✅
+1. **Metrics** — `test/metrics.html`, calibrate 4 fonts, lock `line-height`. ✅
 2. **Grid core** — reset, tokens, `.screen`, `.row/.col`, `.box` (style 1). ✅
 3. **Type + table** — typography scale, table, `hr`, lists. ✅
 4. **Forms + components** — buttons, inputs, progress, alerts, nav, status. ✅
@@ -593,14 +606,14 @@ spinner that stops when the main thread is busy.
   **Braille is not among them, and that is a measurement.** The braille
   spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) is what every terminal tool uses — ora, cli-spinners,
   most Rust CLIs — and it is 12px wide in a 10px cell in JetBrains Mono and
-  DejaVu Sans Mono. It is correct only in Iosevka. The arc (`◜◝◞◟`), circle
-  (`◐◓◑◒`) and triangle (`▲▶▼◀`) sets each fail in a different subset of
-  the three fonts. What lands on a cell in all of them is ASCII plus
+  DejaVu Sans Mono, neither of which has the block at all. It is correct only
+  in Iosevka and JuliaMono. The arc (`◜◝◞◟`), circle (`◐◓◑◒`) and triangle
+  (`▲▶▼◀`) sets each fail in a different subset of the four fonts. What lands on a cell in all of them is ASCII plus
   U+2500–259F, which is exactly the range the README already guarantees the
   bundled fonts cover in full — the same range the borders need, and for the
   same reason (§4.7). So that is the rule for a frame set, and
   `behavior.spec.js` enforces it twice: a lint on the run itself, and a
-  measurement of every glyph against `1ch` in each of the three fonts.
+  measurement of every glyph against `1ch` in each of the four fonts.
 - `.loading` on a `.btn` or `.box` sets `aria-busy`, dims the content and
   centers a spinner **inside the same cell count**, so nothing reflows while
   it waits.
@@ -805,7 +818,7 @@ through `lib/cells.js`, which stays the one module that reads a pixel.
 ```
 
 The marker is a glyph, so it comes from the ranges that are one cell in all
-three bundled fonts — ASCII and U+2500-259F (glyphs.css). That excludes `▸`
+four bundled fonts — ASCII and U+2500-259F (glyphs.css). That excludes `▸`
 and `▾`, which is what a disclosure triangle wants to be and what every
 tempting example uses: U+25B8 is in Geometric Shapes, outside the measured
 range. So the default pair is ASCII `+`/`-`, exposed as
@@ -953,7 +966,7 @@ rather than restating them:
   the grid in both states
 - **popups land on the grid after a flip**, at the viewport edges where the
   flip triggers, not only in the middle of the page
-- **single-cell glyphs** extends to the collapse markers, in all three fonts
+- **single-cell glyphs** extends to the collapse markers, in all four fonts
 - **one timer** — a tooltip's delay, a collapse's step and a drawer's slide all
   go through the one clock, so `motion.clock.jobs` returns to zero after each
 

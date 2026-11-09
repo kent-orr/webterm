@@ -30,7 +30,7 @@
  * Usage — one link and one class:
  *
  *   <link rel="stylesheet" href="src/skin/crt.css">
- *   <html class="font-jetbrains-mono crt crt-vignette">
+ *   <html class="font-julia-mono crt crt-vignette">
  *
  * Put `.crt` on <html> or <body>. The two overlays are that element's ::before
  * and ::after, and a .box already uses both of its own to draw its border, so

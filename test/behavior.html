@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="font-jetbrains-mono">
+<html lang="en" class="font-julia-mono">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,6 +26,7 @@
       <label class="form-label" for="font">font</label>
       <div class="select select-24">
         <select id="font">
+          <option value="font-julia-mono">JuliaMono</option>
           <option value="font-jetbrains-mono">JetBrains Mono</option>
           <option value="font-iosevka">Iosevka</option>
           <option value="font-dejavu-sans-mono">DejaVu Sans Mono</option>
@@ -115,7 +116,7 @@
   </dl>
   <p class="mt-1 dim">Braille is missing from this list on purpose: it is
   double-width in JetBrains Mono and DejaVu Sans Mono, so it would break the
-  grid in two of the three bundled fonts.</p>
+  grid in two of the four bundled fonts.</p>
 
   <h3 class="mt-2">Progress</h3>
   <div class="kv mt-1">
@@ -434,7 +435,7 @@ echo      replica  0.12  ok</pre>
   <h2 class="mt-2">Tooltip</h2>
   <p>An inverse strip against the trigger’s edge, no arrow: a CSS triangle is a
   sub-cell shape and the glyph that would stand in for one is not single-cell in
-  all three fonts. With no script it is a <code>::after</code> on hover; the
+  all four fonts. With no script it is a <code>::after</code> on hover; the
   module replaces that with a real element, which is the only way to be the
   target of <code>aria-describedby</code> or to flip at a viewport edge.</p>
 

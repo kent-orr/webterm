@@ -7,10 +7,26 @@
  * with different metrics and seams appear. Do not substitute them.
  *
  * Sources:
+ *   julia-mono       cormullion/juliamono release v0.63.2 webfonts (OFL-1.1)
  *   jetbrains-mono   JetBrains/JetBrainsMono release v2.304 (OFL-1.1)
  *   iosevka          @fontsource/iosevka 5.3.0, Iosevka 22.1.2 (OFL-1.1)
  *   dejavu-sans-mono @fontsource/dejavu-mono 5.3.0, DejaVu 2.37 (Bitstream Vera license)
  */
+
+@font-face {
+  font-family: "JuliaMono";
+  src: url("julia-mono/julia-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "JuliaMono";
+  src: url("julia-mono/julia-mono-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
 
 @font-face {
   font-family: "JetBrains Mono";

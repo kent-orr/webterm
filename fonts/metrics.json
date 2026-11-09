@@ -85,5 +85,34 @@
       }
     },
     "expected": "typo"
+  },
+  "julia-mono": {
+    "file": "fonts/julia-mono/julia-mono-400.woff2",
+    "version": "v0.63.2; ttfautohint (v1.8.4)",
+    "unitsPerEm": 2000,
+    "advance": 1200,
+    "advanceEm": 0.6,
+    "useTypoMetrics": true,
+    "limits": {
+      "hhea": {
+        "ascent": 1900,
+        "descent": 450,
+        "lines": 1.674,
+        "blocks": 1.175
+      },
+      "typo": {
+        "ascent": 1900,
+        "descent": 450,
+        "lines": 1.674,
+        "blocks": 1.175
+      },
+      "win": {
+        "ascent": 2400,
+        "descent": 450,
+        "lines": 1.424,
+        "blocks": 0.925
+      }
+    },
+    "expected": "typo"
   }
 }

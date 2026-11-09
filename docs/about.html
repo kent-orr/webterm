@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="font-jetbrains-mono">
+<html lang="en" class="font-julia-mono">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -44,8 +44,12 @@
 
   <dl class="kv">
     <dt>chromium</dt>
-    <dd>The calibration is Chromium-only. Firefox and Safari round font
-    metrics differently and have not been measured. The behavior layer is
+    <dd>The calibration is Chromium-only, and build-specific. Firefox and
+    Safari round font metrics differently and have not been measured, and even
+    within Chromium the measured limit moves with the build: re-sweeping an
+    unchanged tree on the same reported version has come back 1px more
+    permissive on a third of the rows, with no 16px row affected. The shipped
+    ratios are the stricter measurement. The behavior layer is
     Chromium-tested only too — it uses <code>&lt;dialog&gt;</code>,
     <code>:has()</code> and <code>round()</code>, all supported in current
     Firefox and Safari, none covered by a spec run here.</dd>
@@ -54,10 +58,10 @@
     <dd>Faint horizontal seams at some font sizes. A glyph is painted at its
     natural em advance inside a cell rounded up to a whole pixel, and the
     difference stays unpainted. Sizes where the product is an integer — 15,
-    20 and 25px for JetBrains Mono, even sizes for Iosevka — are clean for
-    the line glyphs; <code>█</code> keeps a ~0.09px loss even then. Avoid
-    long runs of it. The skin's glow covers the seam, which is not the same
-    as fixing it.</dd>
+    20 and 25px for JetBrains Mono and JuliaMono, even sizes for Iosevka —
+    are clean for the line glyphs; <code>█</code> keeps a ~0.09px loss even
+    then. Avoid long runs of it. The skin's glow covers the seam, which is not
+    the same as fixing it.</dd>
 
     <dt>flex</dt>
     <dd>Several <code>.col</code> children sharing leftover space can land on
@@ -166,8 +170,8 @@ npm run calibrate      # line-height sweep -&gt; test/calibration.json</code></p
   <h3 id="license">License</h3>
 
   <p>MIT. Bundled fonts keep their own licenses, which the repository's
-  <code>LICENSE</code> does not cover: JetBrains Mono and Iosevka under
-  OFL-1.1, DejaVu Sans Mono under the Bitstream Vera license. Each license
+  <code>LICENSE</code> does not cover: JuliaMono, JetBrains Mono and Iosevka
+  under OFL-1.1, DejaVu Sans Mono under the Bitstream Vera license. Each license
   file sits in that font's directory.</p>
 
 </main>
