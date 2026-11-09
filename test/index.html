@@ -23,6 +23,9 @@
   testing. Served over http so the bundled fonts load — Chromium will not take
   a <code>@font-face</code> file over <code>file://</code>.</p>
 
+  <p class="mt-1">Looking for the documentation? It is
+  <a href="../docs/">/docs/</a>, and it is built with webterm too.</p>
+
   <div class="box mt-2">
     <span class="box-edge"></span>
     <span class="box-title">Pages</span>
@@ -70,11 +73,12 @@
         <tr><td>default.spec.js</td><td class="num">5</td><td>the default paints, a link beats it</td></tr>
         <tr><td>behavior.spec.js</td><td class="num">180</td><td>layer 4, cell-exact mid-animation</td></tr>
         <tr><td>skin.spec.js</td><td class="num">27</td><td>layer 3 moves nothing, and is inert unapplied</td></tr>
+        <tr><td>docs.spec.js</td><td class="num">376</td><td>the docs site, page by page</td></tr>
         <tr><td>metrics.spec.js</td><td class="num">340</td><td>font metrics — 100 known failures</td></tr>
       </tbody>
     </table>
-    <p class="mt-1 dim">npm test runs all of them in one process: 812 tests,
-    712 pass. The 100 failures are a wrong assertion rather than a layout bug
+    <p class="mt-1 dim">npm test runs all of them in one process: 1188 tests,
+    1088 pass. The 100 failures are a wrong assertion rather than a layout bug
     — see PLAN §8.</p>
   </div>
 

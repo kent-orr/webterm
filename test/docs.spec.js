@@ -227,6 +227,16 @@ describe('the border exception is one exception', () => {
     assert.deepEqual(uses, ['boxes.html: class="box docs-partial"']);
   });
 
+  // A page that documents how to use the framework shows it working. The
+  // about page documents the project rather than the framework, so it has no
+  // examples — and that is a decision, not an omission, so it is pinned here
+  // rather than left to a page-level check that quietly passes on an empty
+  // page.
+  test('only the about page has no live examples', () => {
+    const without = PAGES.filter((f) => !read(f).includes('class="ex"'));
+    assert.deepEqual(without, PAGES.includes('about.html') ? ['about.html'] : []);
+  });
+
   // data-docs-mounts says "layer 4 rewrites this example's DOM", which is the
   // other way out of a listing check. Only the behavior page may say it.
   test('data-docs-mounts appears only on behavior.html', () => {
@@ -401,7 +411,6 @@ for (const file of PAGES) {
         html: el.innerHTML.trim().length,
         h: el.getBoundingClientRect().height,
       })));
-      assert.ok(live.length > 0, 'no examples on the page');
       assert.deepEqual(live.filter((e) => e.html === 0 || e.h === 0), []);
     });
 
@@ -410,7 +419,6 @@ for (const file of PAGES) {
         live: el.querySelectorAll('.ex-live').length,
         src: el.querySelectorAll('.ex-src').length,
       })));
-      assert.ok(counts.length > 0, 'no .ex figures');
       assert.deepEqual(counts.filter((c) => c.live !== 1 || c.src !== 1), []);
     });
 
@@ -513,7 +521,6 @@ for (const file of PAGES) {
         html: el.innerHTML.trim().length,
         h: el.getBoundingClientRect().height,
       })));
-      assert.ok(live.length > 0, 'no examples on the page');
       assert.deepEqual(live.filter((e) => e.html === 0 || e.h === 0), []);
     });
 

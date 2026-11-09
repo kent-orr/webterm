@@ -449,8 +449,13 @@ webterm/
    Still open for a third pass: a vertical tablist, and a wipe transition
    between tab panels if one can be made cell-exact.
 9. **Docs site** — built with webterm itself, and held to §2 page by page
-   (§13). Ten static pages, no build step, examples generated from their own
-   live markup; `test/docs.spec.js` runs the grid sweep over every page.
+   (§13). ✅
+   Ten static pages in `docs/`, no build step, examples generated from their
+   own live markup; `test/docs.spec.js` runs the grid sweep over every one of
+   them twice — once normally, once with JavaScript disabled — for 376
+   assertions. `docs/skin.html` wears the CRT glass while it is swept, which
+   is §12's rule measured on a page built to be read rather than one built to
+   be measured.
 10. **Generator** — resolve §8 and automate themes.
 
 ## 10. Testing approach
@@ -1246,9 +1251,17 @@ page added later cannot skip the suite:
 - **JavaScript off, the site still reads** — the whole site loaded with
   scripts blocked: every `.ex-live` renders, the grid sweep still passes, and
   no page shows an empty listing shell
-- **examples round-trip** — with the script on, each `.ex-src` text parses to
-  markup equal to its `.ex-live` content, so a listing can never drift from
-  the thing it documents
+- **listings are the file** — each `.ex-src` text parses to markup equal to
+  the `.ex-live` content of the page's own *source file*, fetched and parsed
+  in the browser. Comparing against the live DOM was the first design and it
+  does not survive `behavior.html`, where layer 4 has mounted into the DOM by
+  the time the check runs. The file is what the reader would have typed, so
+  it is the better target anyway.
+- **and the live DOM is the file too**, except where layer 4 legitimately
+  rewrites it. Those examples carry `data-docs-mounts`, which — like
+  `.docs-partial`, the box on `boxes.html` that is missing its `.box-edge` on
+  purpose — is counted by the suite, because an opt-out nobody counts is the
+  hole the whole thing leaks through.
 - **listings fit** — no generated line wider than the content measure
 - **source lint** — `docs.css`: no px/rem/em, no literal color. `docs.js`: no
   px/rem/em length and no color literal, the same lint as layer 4.
@@ -1269,3 +1282,13 @@ Spec first at every step, as in §11.8.
 | 4 | `behavior.html` | needs the real layer-4 bundle on the page and the JS-off pass to still hold |
 | 5 | `theming.html`, `skin.html` | both need a live picker, which is the one place `docs.js` grows |
 | 6 | `about.html`, the nav-completeness and dead-link checks at full size, README and `test/index.html` cross-links | closes the milestone |
+
+All six are built. Three things the spec found that the eye did not: a closed
+`<details>` still reports a rect for its absolutely positioned menu, so the
+border sweep was checking ink that is never painted; Playwright's screenshot
+leaves `style=""` on every control with a caret, which only shows up as a
+listing mismatch on the one page with form controls; and the first fix for
+the first finding marked the DOM, which the file-comparison check caught
+immediately on five other pages. None of the three was a framework bug, and
+all three would have been invisible without a suite that measures the
+documentation.

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — about</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html">layout</a>
+    <a href="boxes.html">boxes</a>
+    <a href="type.html">type</a>
+    <a href="forms.html">forms</a>
+    <a href="components.html">components</a>
+    <a href="behavior.html">behavior</a>
+    <a href="theming.html">theming</a>
+    <a href="skin.html">skin</a>
+    <a href="about.html" aria-current="page">about</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="about">About</h2>
+
+  <p>What is measured, what is known to be wrong, and how to work on it.</p>
+
+  <h3 id="limitations">Limitations</h3>
+
+  <p>Every one of these is a real edge the framework has, documented because
+  a character grid fails visibly and an undocumented failure looks like a
+  bug in your page.</p>
+
+  <dl class="kv">
+    <dt>chromium</dt>
+    <dd>The calibration is Chromium-only. Firefox and Safari round font
+    metrics differently and have not been measured. The behavior layer is
+    Chromium-tested only too — it uses <code>&lt;dialog&gt;</code>,
+    <code>:has()</code> and <code>round()</code>, all supported in current
+    Firefox and Safari, none covered by a spec run here.</dd>
+
+    <dt>seams</dt>
+    <dd>Faint horizontal seams at some font sizes. A glyph is painted at its
+    natural em advance inside a cell rounded up to a whole pixel, and the
+    difference stays unpainted. Sizes where the product is an integer — 15,
+    20 and 25px for JetBrains Mono, even sizes for Iosevka — are clean for
+    the line glyphs; <code>█</code> keeps a ~0.09px loss even then. Avoid
+    long runs of it. The skin's glow covers the seam, which is not the same
+    as fixing it.</dd>
+
+    <dt>flex</dt>
+    <dd>Several <code>.col</code> children sharing leftover space can land on
+    a fractional cell. Use <a href="layout.html#rows"><code>.col-N</code></a>
+    where exactness matters.</dd>
+
+    <dt>wide glyphs</dt>
+    <dd>CJK and emoji occupy two cells and nothing accounts for it. Out of
+    scope for v1.</dd>
+
+    <dt>tooltips</dt>
+    <dd><a href="behavior.html#tooltip"><code>.tip</code></a> on a plain
+    <code>&lt;span&gt;</code> is hover-only until it gets a
+    <code>tabindex</code>. The module does not add one: silently rewriting a
+    page's tab order is worse than the gap.</dd>
+
+    <dt>tabs</dt>
+    <dd>A tab strip is horizontal only. Arrow keys are left and right; a
+    vertical tablist is not written.</dd>
+
+    <dt>the glass</dt>
+    <dd>The <a href="skin.html">scanlines</a> are glass, not a texture. The
+    overlay is fixed to the viewport, so the lines sit on the row grid at rest
+    and after a scroll of a whole number of rows, and mid-row at any other
+    offset. An overlay that scrolled with the content would be aligned always
+    but would not cover a pinned status bar, a toast stack or a drawer.</dd>
+
+    <dt>the top layer</dt>
+    <dd>The skin does not cover an open <code>&lt;dialog&gt;</code>. A modal
+    opened with <code>showModal()</code> is in the top layer, which paints
+    above every <code>z-index</code> there is. The dim behind it is under the
+    glass; the dialog itself is not. And a <code>.crt</code> on a
+    <a href="boxes.html">box</a> erases that box's border, because both want
+    the same two pseudo-elements.</dd>
+
+    <dt>collapse</dt>
+    <dd>A collapse body is a formatting context, so a margin on its first or
+    last child sits inside the body rather than collapsing through it. That is
+    deliberate — the clamp used during the animation establishes one anyway,
+    and a body that only did so while opening would measure one height and
+    animate to another — but it spaces slightly differently from a plain
+    <code>&lt;div&gt;</code>.</dd>
+  </dl>
+
+  <h3 id="testing">What is measured</h3>
+
+  <p>Test-driven wherever it is measurable, which in a framework whose whole
+  claim is geometric is nearly everywhere.</p>
+
+  <table class="table-zebra">
+    <colgroup>
+      <col style="width: 20ch"><col style="width: 9ch"><col style="width: 46ch">
+    </colgroup>
+    <thead>
+      <tr><th>suite</th><th class="num">tests</th><th>what it holds</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>themes.spec.js</td><td class="num">206</td><td>theme contract and contrast</td></tr>
+      <tr><td>readme.spec.js</td><td class="num">8</td><td>every claim the README can be held to</td></tr>
+      <tr><td>grid.spec.js</td><td class="num">46</td><td>integer cells, continuous borders</td></tr>
+      <tr><td>default.spec.js</td><td class="num">5</td><td>the default paints, a link beats it</td></tr>
+      <tr><td>behavior.spec.js</td><td class="num">180</td><td>layer 4, cell-exact mid-animation</td></tr>
+      <tr><td>skin.spec.js</td><td class="num">27</td><td>layer 3 moves nothing, inert unapplied</td></tr>
+      <tr><td>docs.spec.js</td><td class="num">339</td><td>this site, page by page</td></tr>
+      <tr><td>metrics.spec.js</td><td class="num">340</td><td>font metrics — 100 known failures</td></tr>
+    </tbody>
+  </table>
+
+  <p class="mt-1">The 100 failures are a wrong assertion rather than a layout
+  bug. <code>metrics.spec.js</code> asserts that 80 cells equal 80 × the
+  font's em advance × the font size, taken from the font tables — but Chromium
+  lays monospace text out with whole-pixel advances, so a cell is the
+  <em>rounded</em> product: 10px at 16px JetBrains Mono, not 9.6px. The grid
+  property that matters still holds — N cells is N equal whole-pixel columns,
+  regular and bold, with no drift as N grows. The prediction the assertion
+  checks is not the one the browser uses.</p>
+
+  <p>This site is in that table. Every page here is loaded twice — once
+  normally and once with JavaScript disabled — and swept for integer cells,
+  cell boundaries and continuous borders, which is the only reason to build
+  the documentation out of the thing it documents.</p>
+
+  <h3 id="development">Development</h3>
+
+<pre><code>npm install
+npm run serve          # http server + the test pages
+npm test               # node:test; the browser specs need Playwright
+npm run font-limits    # font tables       -&gt; fonts/metrics.json
+npm run calibrate      # line-height sweep -&gt; test/calibration.json</code></pre>
+
+  <p>Re-run both calibration steps after changing a font file or the Chromium
+  version, then copy each ratio into <code>tokens.css</code> — the spec fails
+  if they disagree.</p>
+
+  <p><code>npm run serve</code> prints the URL of the test index, which links
+  the kitchen-sink pages: every CSS component, the behavior layer with a
+  motion switch, the skin with its tokens on live controls, the framework
+  with no theme link at all, and the font calibration harness. Each is built
+  with the framework it tests, as this site is.</p>
+
+  <p><code>PLAN.md</code> is the design document: the rules, the layer
+  architecture, the measured font metrics, and the reasoning behind each
+  rejected alternative. It is the file to read before changing anything
+  here.</p>
+
+  <h3 id="license">License</h3>
+
+  <p>MIT. Bundled fonts keep their own licenses, which the repository's
+  <code>LICENSE</code> does not cover: JetBrains Mono and Iosevka under
+  OFL-1.1, DejaVu Sans Mono under the Bitstream Vera license. Each license
+  file sits in that font's directory.</p>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

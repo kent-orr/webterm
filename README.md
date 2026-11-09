@@ -29,6 +29,11 @@ behavior layer adds toasts, loading states, placeholders and modals — and the
 CSS never depends on it, so every one of those has a static form that renders
 with no script loaded.
 
+The documentation site is in `docs/`, built with webterm itself: ten static
+pages whose examples run live, and whose every element is swept for integer
+cells by `test/docs.spec.js` like any other page in the repo. `npm run serve`
+puts it at `/docs/`.
+
 ## Quick start
 
 ### From a CDN
@@ -758,8 +763,9 @@ Re-run both calibration steps after changing a font file or the Chromium
 version, then copy each ratio into `tokens.css` — the spec fails if they
 disagree.
 
-`npm run serve` prints the URL of `test/index.html`, which links the rest and
-says what each one is for:
+`npm run serve` serves the repo, so `/docs/` is the documentation site and
+`/test/` is the index of harness pages, which links the rest and says what each
+one is for:
 
 - `test/components.html` — every CSS component, with live font and theme
   pickers and a cell/row readout
@@ -770,7 +776,7 @@ says what each one is for:
   default has to paint it
 - `test/metrics.html` — the font calibration harness
 
-Each is built with the framework it tests.
+Each is built with the framework it tests, as the `docs/` site is.
 
 `PLAN.md` is the design document: the rules, the layer architecture, the
 measured font metrics, and the reasoning behind each rejected alternative.
@@ -788,6 +794,7 @@ widths have to match what ships. Rename a class and the README fails with it.
 | `grid.spec.js` + `default.spec.js`    | 51 pass — integer cells, continuous borders, the default paints and a `<link>` beats it |
 | `behavior.spec.js`                    | 180 pass — the behavior layer, cell-exact mid-animation, and the whole page with scripts disabled |
 | `skin.spec.js`                        | 27 pass — the skin moves nothing, and is inert until it is applied |
+| `docs.spec.js`                        | 376 pass — the docs site, page by page, with and without JavaScript |
 | `metrics.spec.js`                     | 240 pass, **100 fail** — known, see below    |
 
 The 100 failures are a wrong assertion, not a layout bug. `metrics.spec.js`
@@ -798,8 +805,8 @@ matters still holds (N cells is N equal whole-px columns, regular and bold, no
 drift with N); the em-advance prediction the test checks is not what the
 browser uses. See PLAN §8.
 
-`npm test` runs every spec in one process — 812 tests, 712 pass, the same 100
-fail, repeatably.
+`npm test` runs every spec in one process — 1188 tests, 1088 pass, the same
+100 fail, repeatably.
 
 The intermittent cancellations this file used to warn about were
 `Page.captureScreenshot` answering "Unable to capture screenshot" on the first
