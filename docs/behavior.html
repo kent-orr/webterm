@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — behavior</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html">layout</a>
+    <a href="boxes.html">boxes</a>
+    <a href="type.html">type</a>
+    <a href="forms.html">forms</a>
+    <a href="components.html">components</a>
+    <a href="behavior.html" aria-current="page">behavior</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="behavior">Behavior</h2>
+
+  <p>Everything on the other pages is CSS. This is the one optional ES module,
+  and it adds what a page usually needs a framework for — loading states,
+  placeholders, toasts, modals, collapse, tabs, dropdowns, tooltips and
+  drawers — with no build step and no dependency.</p>
+
+<pre><code>&lt;script type="module" src="src/behavior/webterm.js"&gt;&lt;/script&gt;</code></pre>
+
+  <p>It sets <code>window.Webterm</code>, so the data attributes below work
+  whether or not you write any JavaScript yourself. This page loads it, which
+  is why the examples here are live.</p>
+
+  <h3 id="never-depends">The CSS never depends on the JS</h3>
+
+  <p>Every component here has a complete static form that renders with no
+  script loaded; the module only drives transitions between states. A page
+  whose module fails to load degrades to static boxes rather than invisible
+  ones — and the test suite loads this whole page a second time with
+  JavaScript disabled and measures it again, which is the only way that claim
+  stays true.</p>
+
+  <p>Collapse, dropdowns and tooltips do better than degrade: with no script
+  at all they still <em>work</em>, because a disclosure is a
+  <code>&lt;details&gt;</code> and a tooltip is an <code>::after</code>.</p>
+
+  <p>Two conventions run through all of it. Everything that is not a class is
+  namespaced — attributes are <code>data-wt-*</code>, events are
+  <code>wt:component:verb</code> with the before-events cancelable. And motion
+  is cell-stepped: a terminal does not tween, so every animation advances a
+  whole cell or a whole row on <code>--wt-tick</code>, 60ms, and
+  <code>prefers-reduced-motion</code> means the final state immediately rather
+  than a faster animation.</p>
+
+  <h3 id="loading">Loading</h3>
+
+  <p>Spinners and the indeterminate bar animate in CSS and need no script at
+  all, which is the point: a spinner driven by JavaScript stops spinning
+  exactly when the main thread is busy, which is the one moment it is there to
+  cover.</p>
+
+  <figure class="ex">
+    <figcaption>five spinner sets, all CSS</figcaption>
+    <div class="ex-live">
+      <p><span class="spin spin-line"></span> spin-line
+      <span class="spin spin-quad"></span> spin-quad
+      <span class="spin spin-half"></span> spin-half
+      <span class="spin spin-bar"></span> spin-bar
+      <span class="spin spin-shade"></span> spin-shade</p>
+    </div>
+  </figure>
+
+  <p>There is deliberately no braille spinner. It is what every terminal tool
+  uses, and it is 12px wide in a 10px cell in two of the three bundled fonts.
+  A frame set may use ASCII and U+2500–259F, which is the range the bundled
+  fonts cover in full, and the spec measures every frame against
+  <code>1ch</code> in each font.</p>
+
+  <figure class="ex" data-docs-mounts>
+    <figcaption>an indeterminate bar</figcaption>
+    <div class="ex-live">
+      <p><span class="progress progress-indeterminate"><span class="bar"></span></span>
+      working</p>
+    </div>
+  </figure>
+
+  <p>A loading state hides its content rather than removing it, so nothing
+  resizes while it waits. <code>Webterm.setLoading(el, true)</code> does that
+  to any element, wrapping the children it should hide and leaving a box's
+  edge and title alone.</p>
+
+  <figure class="ex">
+    <figcaption>a button that keeps its width</figcaption>
+    <div class="ex-live">
+      <button class="btn loading">
+        <span class="loading-label">save</span>
+        <span class="spin spin-quad"></span>
+      </button>
+    </div>
+  </figure>
+
+  <h3 id="placeholders">Placeholders</h3>
+
+  <p>The component that is new rather than ported. A placeholder is locked to
+  the cell count of the real text, and the value arrives by settling into it:
+  every cell shows a random character until its turn, then takes its real one
+  and keeps it.</p>
+
+  <figure class="ex" data-docs-mounts>
+    <figcaption>a value settling in</figcaption>
+    <div class="ex-live">
+      <dl class="kv">
+        <dt>host</dt>
+        <dd><span class="ph" data-wt-ph data-wt-duration="2400">alpha-7</span></dd>
+        <dt>region</dt>
+        <dd><span class="ph" data-wt-ph data-wt-order="random">us-east-2</span></dd>
+      </dl>
+    </div>
+  </figure>
+
+  <p>Because the width is the real string's width from the first frame,
+  resolution causes no layout shift at all. That is what a character grid can
+  promise and a rem-based skeleton cannot. Whitespace never scrambles — the
+  shape of a value, how many words and how long, is most of what a reader is
+  waiting for.</p>
+
+  <p>Three states make it useful rather than decorative:
+  <code>Webterm.ph(el).hold()</code> while a fetch is in flight,
+  <code>.resolve(text)</code> on a value that may differ from the authored
+  one, and <code>.fail()</code>. The declared cell count outlives the
+  animation, so resolving onto longer text clips rather than moving the
+  page.</p>
+
+  <p><code>.ph-area</code> is the same settle in two dimensions, over content
+  that is already on the grid. With no script the mask is a flat
+  <code>░</code> skeleton.</p>
+
+  <figure class="ex" data-docs-mounts>
+    <figcaption>a region settling in</figcaption>
+    <div class="ex-live">
+      <div class="ph-area" style="--cells: 44; --rows: 3">
+        <pre>alpha     primary  0.41  ok
+bravo     replica  1.07  ok
+charlie   replica  3.92  behind</pre>
+        <span class="ph-mask" aria-hidden="true"></span>
+      </div>
+    </div>
+  </figure>
+
+  <h3 id="toasts">Toasts</h3>
+
+  <p>A toast is a <code>.box</code> in a stack pinned to a corner, so it
+  inherits the border, the title and the semantic tints. The stack is created
+  on first use, or written by hand.</p>
+
+  <figure class="ex">
+    <figcaption>fire one</figcaption>
+    <div class="ex-live">
+      <p><button class="btn" data-docs-toast="warn">warn</button>
+      <button class="btn btn-error" data-docs-toast="error">error</button>
+      <button class="btn btn-ok" data-docs-toast="ok">ok</button></p>
+    </div>
+  </figure>
+
+  <p><strong>The bottom border is the countdown.</strong> A cell at a time,
+  from the right, the <code>─</code> run turns to <code>░</code> until the
+  whole edge is shaded and the toast goes with it. The message types in, and
+  the box does not move while it does: the tail that has not arrived is laid
+  out but hidden, so the wrapping never changes.</p>
+
+  <p>Hovering holds the timer. <code>Webterm.config.toastMax</code> bounds how
+  many are visible and the rest queue, and an identical consecutive message is
+  counted as <code>×N</code> on the existing toast rather than stacked. The
+  timeout is time, not motion, so reduced motion does not collapse it — only
+  the typing stops.</p>
+
+  <h3 id="modals">Modals</h3>
+
+  <p>A native <code>&lt;dialog&gt;</code> that is also a box, so the focus
+  trap, <code>Escape</code>, the inert background and the top-layer stacking
+  are the browser's work.</p>
+
+  <figure class="ex">
+    <figcaption>a confirm</figcaption>
+    <div class="ex-live">
+      <p><button class="btn" data-wt-toggle="modal" data-wt-target="#drop">
+      drop replica</button></p>
+      <dialog class="box modal modal-60" id="drop">
+        <span class="box-edge"></span>
+        <span class="box-title">confirm</span>
+        <p class="modal-body">Drop replica charlie?</p>
+        <div class="modal-actions">
+          <button class="btn btn-error" data-wt-dismiss="modal" value="yes">Yes</button>
+          <button class="btn" data-wt-dismiss="modal" value="no" autofocus>Cancel</button>
+        </div>
+      </dialog>
+    </div>
+  </figure>
+
+  <p>The dim behind it is not a translucent black. The grid layer names no
+  color, so it is a run of block-shade glyphs painted in <code>--bg</code>,
+  dithering the page the way a TUI does. The dialog is centered on a whole
+  cell and hangs from <code>--wt-dialog-top</code>, because centering
+  something whose height CSS does not know cannot be snapped to a row.</p>
+
+  <p>Opening a modal locks page scroll without changing the column count,
+  which is the one thing a character grid has to get right here: the reset
+  reserves the scrollbar gutter permanently, so a scrollbar appearing and
+  disappearing never re-rounds the screen and reflows the page behind the
+  dialog.</p>
+
+  <p>And because a terminal interface asks small questions constantly, there
+  are two promises for the common cases:</p>
+
+<pre><code>if (await Webterm.confirm('Drop replica charlie?')) drop()
+const host = await Webterm.prompt({ label: 'host', fieldCells: 24 })</code></pre>
+
+  <h3 id="collapse">Collapse</h3>
+
+  <p>A <code>&lt;details&gt;</code>, so it opens and closes with no script.
+  What the module adds is the animation, and it is the vertical half of the
+  placeholder's promise: the body's height steps a whole row at a time on the
+  tick, so the page below it is never mid-row.</p>
+
+  <figure class="ex" data-docs-mounts>
+    <figcaption>two disclosures sharing a name</figcaption>
+    <div class="ex-live">
+      <details class="collapse" name="disks">
+        <summary>disk</summary>
+        <div class="collapse-body">
+          <dl class="kv">
+            <dt>/</dt>
+            <dd>14G of 40G</dd>
+            <dt>/var</dt>
+            <dd>31G of 80G</dd>
+          </dl>
+        </div>
+      </details>
+      <details class="collapse" name="disks">
+        <summary>network</summary>
+        <div class="collapse-body">
+          <p>eth0 up, 1.4 Gbit/s</p>
+        </div>
+      </details>
+    </div>
+  </figure>
+
+  <p>The row count comes from measuring the content and the tick count from
+  <code>data-wt-duration</code>, so a twenty-row region opens in the same time
+  as a two-row one. A shared <code>name</code> makes the browser close the
+  sibling — an accordion, free.</p>
+
+  <p>The marker is <code>+</code> and <code>-</code> rather than
+  <code>▸</code> and <code>▾</code>: those live in Geometric Shapes, outside
+  the range that measures a single cell in all three bundled fonts.</p>
+
+  <h3 id="tabs">Tabs</h3>
+
+  <p>With no script a tab set is a document with two sections and two links to
+  them: every panel readable, nothing hidden. The module makes it a
+  <code>tablist</code> with roving focus, arrow keys and one panel at a
+  time.</p>
+
+  <figure class="ex" data-docs-mounts>
+    <figcaption>tabs, height-locked</figcaption>
+    <div class="ex-live">
+      <div class="tabs">
+        <div class="nav tabs-list">
+          <a href="#cpu" class="active">cpu</a>
+          <a href="#mem">mem</a>
+        </div>
+        <div class="tabs-panels">
+          <section class="tab-panel" id="cpu">
+            <p>load 0.41, 0.52, 0.48</p>
+          </section>
+          <section class="tab-panel" id="mem">
+            <p>3.1G of 16G</p>
+            <p>swap untouched</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <p>The reason tabs are here at all is the height lock. Panels are different
+  heights, so switching them moves everything below — the layout shift this
+  framework exists to avoid, one axis over.
+  <code>.tabs-panels</code> is measured across every panel and pinned to the
+  tallest in whole rows, and re-measured when the window changes, since text
+  rewraps. There is no transition: a terminal repaints a pane.</p>
+
+  <h3 id="dropdown">Dropdown</h3>
+
+  <p>The same disclosure, floating. Every position the menu can take is
+  anchored to an <em>edge</em> of the trigger, so it sits directly against a
+  trigger of any height, and flipping near a viewport edge means anchoring to
+  the opposite edge rather than nudging by a measured distance. Nothing can
+  land mid-cell, because nothing computes a position.</p>
+
+  <figure class="ex" data-docs-mounts>
+    <figcaption>a menu that cannot land mid-cell</figcaption>
+    <div class="ex-live">
+      <details class="dropdown">
+        <summary class="btn">actions</summary>
+        <div class="box dropdown-menu" style="--cells: 24">
+          <span class="box-edge"></span>
+          <div class="menu">
+            <a href="#dropdown">restart</a>
+            <a href="#dropdown">drain</a>
+            <a href="#dropdown">promote</a>
+          </div>
+        </div>
+      </details>
+    </div>
+  </figure>
+
+  <p>The module adds what a native <code>&lt;details&gt;</code> has no opinion
+  about: <code>Escape</code>, a click outside, one open at a time, roving focus
+  through the items, and focus handed back to the trigger on close.</p>
+
+  <h3 id="tooltip">Tooltip</h3>
+
+  <p>An inverse strip against the trigger's edge, up to <code>--cells</code>
+  wide and wrapped to whole rows. No arrow: a CSS triangle is a sub-cell
+  shape, and the glyph that would stand in for one is not single-cell in every
+  bundled font, so the bubble sits flush — which is what a TUI hint does.</p>
+
+  <figure class="ex" data-docs-mounts>
+    <figcaption>hover or focus the host name</figcaption>
+    <div class="ex-live">
+      <p><span class="tip" data-wt-tip="412 segments behind" tabindex="0">charlie</span>
+      is degraded</p>
+    </div>
+  </figure>
+
+  <p>With no script the whole component is <code>.tip::after</code>, taking
+  its text from the attribute on hover and focus. With the module it is a real
+  element instead — a pseudo-element cannot be the target of
+  <code>aria-describedby</code> and cannot be flipped away from a viewport
+  edge — and the static one is stood down so only one ever shows.</p>
+
+  <p>Put <code>.tip</code> on something focusable, or give it
+  <code>tabindex="0"</code>: a hover-only tooltip is not reachable from the
+  keyboard.</p>
+
+  <h3 id="offcanvas">Offcanvas</h3>
+
+  <p>A drawer is the modal's <code>&lt;dialog&gt;</code> anchored to an edge,
+  so it inherits <code>Escape</code>, the focus trap, the inert page, the top
+  layer and the scroll lock. It slides a whole number of cells per tick.</p>
+
+  <figure class="ex">
+    <figcaption>a drawer</figcaption>
+    <div class="ex-live">
+      <p><button class="btn" data-wt-toggle="offcanvas" data-wt-target="#drawer">
+      menu</button></p>
+      <dialog class="box offcanvas offcanvas-left" id="drawer" style="--cells: 28">
+        <span class="box-edge"></span>
+        <span class="box-title">hosts</span>
+        <div class="menu">
+          <a href="#offcanvas">alpha</a>
+          <a href="#offcanvas">bravo</a>
+          <a href="#offcanvas">charlie</a>
+        </div>
+        <p><button class="btn" data-wt-dismiss="offcanvas">close</button></p>
+      </dialog>
+    </div>
+  </figure>
+
+  <p>The dim behind it is a sibling rather than a child of the dialog, because
+  a transform makes a dialog the containing block for its fixed descendants —
+  a child dim would slide with the panel it is meant to sit behind.</p>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<!--
+  docs.js first: it takes each example's listing from the markup as written,
+  and layer 4 rewrites some of that markup the moment it mounts.
+-->
+<script src="docs.js"></script>
+<script type="module" src="../src/behavior/webterm.js"></script>
+<script type="module" src="docs-behavior.js"></script>
+</body>
+</html>

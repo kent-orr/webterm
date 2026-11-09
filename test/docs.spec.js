@@ -88,6 +88,43 @@ function frameworkClasses() {
 // them: the site's own chrome, and the example scaffolding.
 const DOCS_OWN = /^(docs-|ex$|ex-)/;
 
+/*
+ * Markup normalizer, as source text, because it runs inside the page in two
+ * different evaluate calls.
+ *
+ * It compares markup rather than bytes: whitespace between tags collapses,
+ * comments go, and an empty style attribute goes with them — Playwright's
+ * screenshot hides the caret by setting an inline caret-color and clearing it
+ * again, which leaves style="" on every control that has one.
+ */
+const NORM = `
+  const norm = (html) => {
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    const walk = (node) => {
+      for (const child of [...node.childNodes]) {
+        if (child.nodeType === 3) {
+          const text = child.nodeValue.replace(/\\s+/g, ' ');
+          if (text.trim() === '') child.remove();
+          else child.nodeValue = text.trim();
+        } else if (child.nodeType === 8) {
+          child.remove();
+        } else {
+          if (child.getAttribute('style') === '') child.removeAttribute('style');
+          walk(child);
+        }
+      }
+    };
+    walk(t.content);
+    return t.innerHTML;
+  };
+  const authored = async () => {
+    const src = await (await fetch(location.href, { cache: 'no-store' })).text();
+    const doc = new DOMParser().parseFromString(src, 'text/html');
+    return [...doc.querySelectorAll('.ex')];
+  };
+`;
+
 let server;
 let browser;
 let ctx;
@@ -185,13 +222,27 @@ describe('the border exception is one exception', () => {
     }
     assert.deepEqual(uses, ['boxes.html: class="box docs-partial"']);
   });
+
+  // data-docs-mounts says "layer 4 rewrites this example's DOM", which is the
+  // other way out of a listing check. Only the behavior page may say it.
+  test('data-docs-mounts appears only on behavior.html', () => {
+    const pages = PAGES.filter((f) => read(f).includes('data-docs-mounts'));
+    assert.deepEqual(pages, PAGES.includes('behavior.html') ? ['behavior.html'] : []);
+  });
 });
+
+// Code samples contain href= and src= as text. They are not links, and a
+// sample that names a path relative to the repo root rather than to docs/ is
+// correct for its reader and wrong for fs.existsSync.
+function withoutCode(html) {
+  return html.replace(/<pre\b[\s\S]*?<\/pre>/g, '').replace(/<code\b[\s\S]*?<\/code>/g, '');
+}
 
 describe('links resolve', () => {
   test('every relative href and src is a file on disk', () => {
     const bad = [];
     for (const file of PAGES) {
-      const html = read(file);
+      const html = withoutCode(read(file));
       for (const m of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
         const ref = m[1];
         if (/^(https?:|mailto:|#|\/\/)/.test(ref)) continue;
@@ -205,7 +256,7 @@ describe('links resolve', () => {
   test('every in-page anchor has a target on that page', () => {
     const bad = [];
     for (const file of PAGES) {
-      const html = read(file);
+      const html = withoutCode(read(file));
       const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
       for (const m of html.matchAll(/href="#([^"]+)"/g)) {
         if (!ids.has(m[1])) bad.push(`${file} -> #${m[1]}`);
@@ -299,6 +350,9 @@ for (const file of PAGES) {
         const [screen] = await rects(page, '.screen');
         const bad = [];
         for (const r of found) {
+          // A closed <dialog> is display:none. It has no box, so it has no
+          // box to be off the grid, and it gets one the moment it opens.
+          if (r.w === 0 && r.h === 0) continue;
           if (offGrid(r.w, cell.ch) >= TOL) {
             bad.push(`${describeRect(r)} w=${r.w} (${(r.w / cell.ch).toFixed(3)}ch)`);
           }
@@ -319,8 +373,16 @@ for (const file of PAGES) {
       // .docs-partial is the one deliberate exception: boxes.html shows what
       // a box without its .box-edge span looks like, and the point of that
       // demo is the two edges it is missing.
+      // A box inside a closed <details> still reports a rect, because the
+      // menu is absolutely positioned and only the paint is skipped. Ask the
+      // browser what it is painting rather than inferring it from geometry —
+      // and ask without marking the DOM, because the next test compares this
+      // page's markup against the file it came from.
+      const painted = await page.$$eval('.box', (els) => els.map((el) => el.checkVisibility()));
       const boxes = (await borders.boxGeometry(page, '.box'))
-        .filter((b) => !/\bdocs-partial\b/.test(b.cls));
+        .filter((b, i) => painted[i])
+        .filter((b) => !/\bdocs-partial\b/.test(b.cls))
+        .filter((b) => b.w > 0 && b.h > 0);
       if (boxes.length === 0) return;
       await hideFixed(page);
       const png = borders.readShot(await shoot(page, { fullPage: true }));
@@ -348,40 +410,54 @@ for (const file of PAGES) {
       assert.deepEqual(counts.filter((c) => c.live !== 1 || c.src !== 1), []);
     });
 
-    // The one that keeps a listing from drifting from the thing above it.
-    test('each listing parses back to its own live markup', async () => {
-      const bad = await page.$$eval('.ex', (els) => {
-        const norm = (html) => {
-          const t = document.createElement('template');
-          t.innerHTML = html;
-          const walk = (node) => {
-            for (const child of [...node.childNodes]) {
-              if (child.nodeType === 3) {
-                const text = child.nodeValue.replace(/\s+/g, ' ');
-                if (text.trim() === '') child.remove();
-                else child.nodeValue = text.trim();
-              } else if (child.nodeType === 8) child.remove();
-              else {
-                // Playwright's screenshot hides the caret by setting an
-                // inline caret-color and clearing it again, which leaves
-                // style="" behind on every control that has one. The border
-                // test shoots before this one runs, so the residue is on the
-                // live markup and not in the listing. It is the harness's,
-                // not the page's.
-                if (child.getAttribute('style') === '') child.removeAttribute('style');
-                walk(child);
-              }
-            }
-          };
-          walk(t.content);
-          return t.innerHTML;
-        };
-        return els.map((el, i) => {
-          const live = norm(el.querySelector('.ex-live').innerHTML);
-          const listed = norm(el.querySelector('.ex-src').textContent);
-          return live === listed ? null : { i, live, listed };
-        }).filter(Boolean);
-      });
+    /*
+     * The one that keeps a listing from drifting from the thing it documents.
+     *
+     * The listing is compared against the page's own source file, parsed —
+     * not against the live DOM — because on behavior.html the live DOM is no
+     * longer the authored markup by the time this runs: layer 4 has mounted
+     * into it. Anchoring to the file is the stronger check anyway. It is what
+     * the reader would have typed.
+     */
+    test('each listing is the markup the file holds', async () => {
+      const bad = await page.evaluate(`(async () => {
+        ${NORM}
+        const src = await authored();
+        const out = [];
+        document.querySelectorAll('.ex').forEach((ex, i) => {
+          const listing = ex.querySelector('.ex-src');
+          const live = src[i] && src[i].querySelector('.ex-live');
+          if (!listing || !live) { out.push({ i, missing: true }); return; }
+          const a = norm(live.innerHTML);
+          const b = norm(listing.textContent);
+          if (a !== b) out.push({ i, file: a, listed: b });
+        });
+        return out;
+      })()`);
+      assert.deepEqual(bad, []);
+    });
+
+    /*
+     * And the other half: the page is not doing DOM surgery behind the
+     * listing's back. Where the behavior layer mounts it legitimately is, so
+     * those examples say so on the figure and are counted elsewhere.
+     */
+    test('the live markup is the file\'s, except where layer 4 mounts', async () => {
+      const bad = await page.evaluate(`(async () => {
+        ${NORM}
+        const src = await authored();
+        const out = [];
+        document.querySelectorAll('.ex').forEach((ex, i) => {
+          if (ex.hasAttribute('data-docs-mounts')) return;
+          const live = ex.querySelector('.ex-live');
+          const file = src[i] && src[i].querySelector('.ex-live');
+          if (!live || !file) { out.push({ i, missing: true }); return; }
+          const a = norm(file.innerHTML);
+          const b = norm(live.innerHTML);
+          if (a !== b) out.push({ i, file: a, live: b });
+        });
+        return out;
+      })()`);
       assert.deepEqual(bad, []);
     });
 
