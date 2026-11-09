@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — components</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html">layout</a>
+    <a href="boxes.html">boxes</a>
+    <a href="type.html">type</a>
+    <a href="forms.html">forms</a>
+    <a href="components.html" aria-current="page">components</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="components">Components</h2>
+
+  <p>Everything on this page is CSS. Nothing here needs the
+  <a href="index.html#layers">behavior layer</a>, and nothing here changes
+  size, so a component is composed by putting classes next to each other
+  rather than by overriding a scale.</p>
+
+  <h3 id="badges">Badges</h3>
+
+  <p>An inverse-video word, padded by one cell either side, so a badge is
+  exactly its label plus two.</p>
+
+  <figure class="ex">
+    <figcaption>badges</figcaption>
+    <div class="ex-live">
+      <p><span class="badge">default</span>
+      <span class="badge badge-ok">ready</span>
+      <span class="badge badge-warn">behind</span>
+      <span class="badge badge-error">down</span>
+      <span class="badge badge-info">info</span>
+      <span class="badge badge-muted">idle</span></p>
+    </div>
+  </figure>
+
+  <h3 id="progress">Progress</h3>
+
+  <p>You give cell counts, not percentages: <code>--cells</code> wide with
+  the first <code>--fill</code> filled, and <code>--cells</code> defaults to
+  24. A percentage would land the fill boundary at 37.4% of a cell, which is
+  the one thing a character grid cannot draw — so the API refuses to accept
+  one.</p>
+
+  <figure class="ex">
+    <figcaption>a bar is a count of cells</figcaption>
+    <div class="ex-live">
+      <p><span class="progress" style="--fill: 18"><span class="bar"></span></span>
+      18 of 24</p>
+      <p><span class="progress progress-warn" style="--fill: 9"><span class="bar"></span></span>
+      9 of 24</p>
+      <p><span class="progress progress-error" style="--fill: 2"><span class="bar"></span></span>
+      2 of 24</p>
+    </div>
+  </figure>
+
+  <p>The track is a <code>░</code> run and the fill is a <code>█</code> run
+  clipped to the filled cells — the same technique as a box border, for the
+  same reason: CSS cannot repeat a glyph a computed number of times.</p>
+
+  <h3 id="alerts">Alerts</h3>
+
+  <p>An alert is a box with its border and text tinted. Because the tint is
+  the box's <code>--border</code> variable, every border style works
+  underneath it.</p>
+
+  <figure class="ex">
+    <figcaption>four levels</figcaption>
+    <div class="ex-live">
+      <div class="box alert alert-warn">
+        <span class="box-edge"></span>
+        <span class="box-title">warn</span>
+        <p>Replica charlie is 3.9 seconds behind.</p>
+      </div>
+      <div class="box alert alert-error mt-1">
+        <span class="box-edge"></span>
+        <span class="box-title">error</span>
+        <p>Backup failed after 3 seconds.</p>
+      </div>
+    </div>
+  </figure>
+
+  <h3 id="nav">Nav and menu</h3>
+
+  <p><code>.nav</code> is a horizontal strip with the current item inverse;
+  <code>.menu</code> is the vertical form, and its selection runs the full
+  width of the column the way a highlighted row does in a TUI. The nav at the
+  top of this page is the first one.</p>
+
+  <figure class="ex">
+    <figcaption>a horizontal nav</figcaption>
+    <div class="ex-live">
+      <nav class="nav">
+        <a href="#nav" class="active">grid</a>
+        <a href="#nav">boxes</a>
+        <a href="#nav">type</a>
+      </nav>
+    </div>
+  </figure>
+
+  <figure class="ex">
+    <figcaption>a menu in a box</figcaption>
+    <div class="ex-live">
+      <div class="row">
+        <div class="col-24">
+          <div class="box box-tight">
+            <span class="box-edge"></span>
+            <span class="box-title">Hosts</span>
+            <nav class="menu">
+              <a href="#nav">alpha</a>
+              <a href="#nav" class="active">bravo</a>
+              <a href="#nav">charlie</a>
+            </nav>
+          </div>
+        </div>
+        <div class="col"></div>
+      </div>
+    </div>
+  </figure>
+
+  <p>The selected row reaches into the box's gutter cells because
+  <code>.box-tight</code> gave it none to begin with: a highlight that stops
+  one cell short of the border is the kind of near-miss this framework exists
+  to avoid.</p>
+
+  <h3 id="kv">Key and value</h3>
+
+  <p><code>.kv</code> is a two-column grid on a <code>&lt;dl&gt;</code>, keys
+  dim and in a column as wide as the widest one.</p>
+
+  <figure class="ex">
+    <figcaption>a kv list</figcaption>
+    <div class="ex-live">
+      <dl class="kv">
+        <dt>host</dt>
+        <dd>alpha.internal</dd>
+        <dt>role</dt>
+        <dd>primary</dd>
+        <dt>uptime</dt>
+        <dd>41 days</dd>
+      </dl>
+    </div>
+  </figure>
+
+  <h3 id="statusbar">Status bar</h3>
+
+  <p>A full-width inverse strip, one row tall. <code>.spacer</code> pushes
+  what follows it to the other end, and <code>.statusbar-fixed</code> pins
+  the bar to the bottom of the viewport — which is where the one on this page
+  is, showing the page's size in cells.</p>
+
+  <figure class="ex">
+    <figcaption>a status bar in place</figcaption>
+    <div class="ex-live">
+      <div class="statusbar">
+        <span>NORMAL</span>
+        <span>webterm.css</span>
+        <span class="spacer"></span>
+        <span>utf-8</span>
+        <span>12:4</span>
+      </div>
+    </div>
+  </figure>
+
+  <p>A fixed bar is the one element on a webterm page whose <em>position</em>
+  is not on the grid, and it cannot be: it is placed against the viewport,
+  and a viewport is however many pixels tall the window happens to be. Its
+  size is still a whole row, which is what the test suite checks — it
+  measures only the geometry a fixed element actually controls.</p>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>
