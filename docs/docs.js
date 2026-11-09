@@ -56,6 +56,44 @@
     geom.textContent = `${cols}×${rows}`;
   };
 
+  /*
+   * Live controls, where a page has them. Each one is a plain form control
+   * that does nothing until this file runs, so a page with no script shows
+   * the control in its default position and the default it describes.
+   */
+  const FONTS = ['font-jetbrains-mono', 'font-iosevka', 'font-dejavu-sans-mono'];
+
+  const themePicker = document.getElementById('docs-theme');
+  const themeLink = document.getElementById('docs-theme-link');
+  if (themePicker && themeLink) {
+    themePicker.addEventListener('change', () => {
+      themeLink.href = `../src/themes/${themePicker.value}.css`;
+    });
+  }
+
+  const fontPicker = document.getElementById('docs-font');
+  if (fontPicker) {
+    fontPicker.addEventListener('change', async () => {
+      // Add and remove the font classes by name: the skin page keeps its own
+      // classes on the same element, and a wholesale className swap would
+      // take them with it.
+      document.documentElement.classList.remove(...FONTS);
+      document.documentElement.classList.add(fontPicker.value);
+      await document.fonts.ready;
+      readout();
+    });
+  }
+
+  // A switch named in data-docs-skin toggles that class on <html>, which is
+  // where crt.css says the skin classes go.
+  for (const control of document.querySelectorAll('[data-docs-skin]')) {
+    control.addEventListener('change', () => {
+      document.documentElement.classList.toggle(
+        control.getAttribute('data-docs-skin'), control.checked,
+      );
+    });
+  }
+
   addEventListener('resize', readout);
   document.fonts.ready.then(() => {
     readout();

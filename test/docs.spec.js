@@ -153,7 +153,11 @@ describe('the site exists', () => {
     for (const file of PAGES) {
       const html = read(file);
       if (!/^<!doctype html>/i.test(html)) bad.push(`${file}: no doctype`);
-      if (!/<html lang="en" class="font-[a-z-]+">/.test(html)) bad.push(`${file}: no font class on <html>`);
+      // Exactly one font class, and the skin page also carries its skin
+      // classes there — which is where crt.css says to put them.
+      if (!/<html lang="en" class="[^"]*\bfont-[a-z-]+\b[^"]*">/.test(html)) {
+        bad.push(`${file}: no font class on <html>`);
+      }
       if (!html.includes('../src/webterm.css')) bad.push(`${file}: does not link webterm.css`);
       if (!html.includes('../fonts/webterm-fonts.css')) bad.push(`${file}: does not link the fonts`);
       if (!/<title>[^<]+<\/title>/.test(html)) bad.push(`${file}: no title`);

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono crt crt-vignette">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — the skin</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="../src/skin/crt.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html">layout</a>
+    <a href="boxes.html">boxes</a>
+    <a href="type.html">type</a>
+    <a href="forms.html">forms</a>
+    <a href="components.html">components</a>
+    <a href="behavior.html">behavior</a>
+    <a href="theming.html">theming</a>
+    <a href="skin.html" aria-current="page">skin</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="skin">The skin</h2>
+
+  <p>Layer 3, optional and additive: a CRT glass over the page. One more
+  <code>&lt;link&gt;</code> and one class on <code>&lt;html&gt;</code>.</p>
+
+  <p><strong>This page has it on.</strong> Scanlines, phosphor glow and a
+  corner vignette are between you and every word here. Turn them off and
+  compare — nothing on the page will move, which is the whole claim.</p>
+
+  <div class="box mt-1">
+    <span class="box-edge"></span>
+    <span class="box-title">glass</span>
+    <p><label><input type="checkbox" data-docs-skin="crt" checked>
+    scanlines and glow</label></p>
+    <p><label><input type="checkbox" data-docs-skin="crt-vignette" checked>
+    vignette</label></p>
+  </div>
+
+<pre><code>&lt;link rel="stylesheet" href="src/skin/crt.css"&gt;
+
+&lt;html class="font-jetbrains-mono crt crt-vignette"&gt;</code></pre>
+
+  <h3 id="rule">One rule</h3>
+
+  <blockquote>The skin declares nothing that can move an element.</blockquote>
+
+  <p>Not &ldquo;should not&rdquo; — it is measurable, and
+  <code>test/skin.spec.js</code> measures it twice. Every rect on the
+  kitchen-sink page is identical with <code>.crt</code> and without it, and a
+  page that loads <code>crt.css</code> but never applies the class is
+  pixel-identical to one that does not load it at all.</p>
+
+  <p>The first holds the promise. The second is what makes a skin something a
+  page can ship unconditionally and switch on at runtime — which is exactly
+  what the switch above does.</p>
+
+  <p>On a real element the layer sets <code>text-shadow</code>, an animation
+  and custom properties, and nothing else. Everything it paints is on a
+  fixed pseudo-element. Every selector names a skin class. Those three
+  facts are what make the rule structural rather than lucky, and a source
+  lint checks all three.</p>
+
+  <p>This page is the demonstration: it is swept by the same suite as every
+  other page here — integer cells, cell boundaries, continuous box borders —
+  and it is swept with the glass on.</p>
+
+  <h3 id="no-px">No px in it either</h3>
+
+  <p>A scanline is a sub-cell shape, which looks like the one place the
+  framework would have to reach for a pixel. It does not. The period is
+  <code>1lh</code> and the ink band is a fraction of <code>1lh</code>, so
+  there is one scanline per <em>character row</em> by construction, and the
+  glow radius is in <code>ch</code>. The effect scales with the font instead
+  of drifting away from it.</p>
+
+  <p>That is also the webterm-specific part of the effect. A CRT skin
+  elsewhere picks a 2px or 4px period because it has no better unit
+  available; here the row <em>is</em> the unit, and the lines land on the same
+  boundaries the text does.</p>
+
+  <h3 id="tokens">Tokens</h3>
+
+  <table class="table-zebra">
+    <colgroup>
+      <col style="width: 26ch"><col style="width: 12ch"><col style="width: 36ch">
+    </colgroup>
+    <thead>
+      <tr><th>token</th><th>default</th><th>what it does</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>--wt-crt-ink</td><td>var(--bg)</td><td>what both overlays paint in</td></tr>
+      <tr><td>--wt-crt-scan-rows</td><td class="num">1</td><td>rows per scanline</td></tr>
+      <tr><td>--wt-crt-scan-thickness</td><td class="num">0.5</td><td>how much of the row inks</td></tr>
+      <tr><td>--wt-crt-scan-ink</td><td class="num">0.2</td><td>strength; 0 turns it off</td></tr>
+      <tr><td>--wt-crt-glow</td><td class="num">0.18</td><td>glow radius in cells</td></tr>
+      <tr><td>--wt-crt-vignette-ink</td><td class="num">0.4</td><td>vignette strength</td></tr>
+      <tr><td>--wt-blink-ticks</td><td class="num">8</td><td>ticks lit, then as many clear</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="ink">Why the ink is the background</h3>
+
+  <p>The theme contract has no darker token to reach for.
+  <code>--c0</code> looks like one — a scanline is the absence of phosphor, so
+  it should ink in the theme's black — and it is wrong. The ANSI slots are a
+  palette, not a brightness order:
+  <a href="theming.html#contract">solarized-light</a> sets <code>--c0</code>
+  to a light tone, because that is what slot 0 of the light Solarized palette
+  is. A <code>--c0</code> overlay would <em>lighten</em> that theme.</p>
+
+  <p><code>--bg</code> darkens a dark theme, does nothing to a light one, and
+  never inverts. Set <code>--wt-crt-ink: var(--fg)</code> if you want one on a
+  light theme anyway.</p>
+
+  <p>The glow is <code>currentColor</code>, so a green span glows green and a
+  red one glows red.</p>
+
+  <figure class="ex">
+    <figcaption>the glow takes the text's own color</figcaption>
+    <div class="ex-live">
+      <p><span class="c2">ready</span>
+      <span class="c3">degraded</span>
+      <span class="c1">down</span>
+      <span class="c6">syncing</span></p>
+    </div>
+  </figure>
+
+  <h3 id="cursor">The cursor</h3>
+
+  <p><code>.cursor-blink</code> adds the animation and nothing else. The lit
+  cell is <code>.inverse</code> from the grid layer, so a page that leaves the
+  skin out keeps a steady block cursor rather than losing it.</p>
+
+  <figure class="ex">
+    <figcaption>a prompt</figcaption>
+    <div class="ex-live">
+      <p class="pre">$ webterm serve <span class="inverse cursor-blink"> </span></p>
+    </div>
+  </figure>
+
+  <p>It blinks on the framework's one clock: eight ticks lit, eight clear,
+  480ms each at the default tick. The step function is
+  <code>steps(2, jump-none)</code>, so it is on and off rather than a fade — a
+  terminal cursor does not fade. Under <code>prefers-reduced-motion</code> or
+  <code>data-wt-motion="off"</code> it parks lit.</p>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

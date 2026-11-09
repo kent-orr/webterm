@@ -81,3 +81,17 @@ body {
   margin-top: 1lh;
   color: var(--muted);
 }
+
+/*
+ * A color swatch: three cells of solid ink in whatever the .cN class on it
+ * sets. Painted as a background rather than as a run of █, because a run of
+ * block glyphs shows the horizontal seam described on the about page, and a
+ * palette is the one place that seam would read as part of the color.
+ */
+.docs-swatch {
+  display: inline-block;
+  vertical-align: top;
+  width: 3ch;
+  height: 1lh;
+  background: currentColor;
+}

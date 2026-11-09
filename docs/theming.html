@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — theming</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="../src/themes/pawpaw.css" id="docs-theme-link">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html">layout</a>
+    <a href="boxes.html">boxes</a>
+    <a href="type.html">type</a>
+    <a href="forms.html">forms</a>
+    <a href="components.html">components</a>
+    <a href="behavior.html">behavior</a>
+    <a href="theming.html" aria-current="page">theming</a>
+    <a href="skin.html">skin</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="theming">Theming</h2>
+
+  <p>A theme sets color custom properties and nothing else. The grid layer
+  names no literal color anywhere — a lint enforces it — so the two layers
+  meet at exactly 22 values and nowhere else.</p>
+
+  <div class="row mt-1">
+    <div class="col-24">
+      <label class="form-label" for="docs-theme">theme</label>
+      <div class="select select-24">
+        <select id="docs-theme">
+          <option value="pawpaw">pawpaw (default)</option>
+          <option value="tomorrow-night">tomorrow-night</option>
+          <option value="solarized-dark">solarized-dark</option>
+          <option value="solarized-light">solarized-light</option>
+          <option value="gruvbox-dark">gruvbox-dark</option>
+          <option value="dracula">dracula</option>
+          <option value="nord">nord</option>
+          <option value="green-phosphor">green-phosphor</option>
+          <option value="amber-phosphor">amber-phosphor</option>
+        </select>
+      </div>
+    </div>
+    <div class="col-24">
+      <label class="form-label" for="docs-font">font</label>
+      <div class="select select-24">
+        <select id="docs-font">
+          <option value="font-jetbrains-mono">JetBrains Mono</option>
+          <option value="font-iosevka">Iosevka</option>
+          <option value="font-dejavu-sans-mono">DejaVu Sans Mono</option>
+        </select>
+      </div>
+    </div>
+    <div class="col"></div>
+  </div>
+
+  <p class="mt-1">Both pickers drive this page. The theme swap is one
+  <code>&lt;link&gt;</code> href; the font swap is one class on
+  <code>&lt;html&gt;</code>, and it changes the size of every cell on the
+  page — watch the column count in the status bar.</p>
+
+  <h3 id="contract">The contract</h3>
+
+<pre><code>:root {
+  --bg: ;     --fg: ;
+  --cursor: ; --cursor-fg: ;
+  --sel: ;    --sel-fg: ;
+  --c0: ;  --c1: ;  --c2: ;  --c3: ;
+  --c4: ;  --c5: ;  --c6: ;  --c7: ;
+  --c8: ;  --c9: ;  --c10: ; --c11: ;
+  --c12: ; --c13: ; --c14: ; --c15: ;
+}</code></pre>
+
+  <p>That is the complete set, all as hex. Copy
+  <code>src/themes/tomorrow-night.css</code> as a starting point. Nine themes
+  ship, and the one this page starts in — Pawpaw — is imported by
+  <code>webterm.css</code> itself, so a page with no theme
+  <code>&lt;link&gt;</code> still paints.</p>
+
+  <figure class="ex">
+    <figcaption>the sixteen slots of the current theme</figcaption>
+    <div class="ex-live">
+      <div class="row">
+        <div class="col-8"><span class="c0 docs-swatch"></span> c0</div>
+        <div class="col-8"><span class="c1 docs-swatch"></span> c1</div>
+        <div class="col-8"><span class="c2 docs-swatch"></span> c2</div>
+        <div class="col-8"><span class="c3 docs-swatch"></span> c3</div>
+        <div class="col-8"><span class="c4 docs-swatch"></span> c4</div>
+        <div class="col-8"><span class="c5 docs-swatch"></span> c5</div>
+        <div class="col-8"><span class="c6 docs-swatch"></span> c6</div>
+        <div class="col-8"><span class="c7 docs-swatch"></span> c7</div>
+        <div class="col"></div>
+      </div>
+      <div class="row">
+        <div class="col-8"><span class="c8 docs-swatch"></span> c8</div>
+        <div class="col-8"><span class="c9 docs-swatch"></span> c9</div>
+        <div class="col-8"><span class="c10 docs-swatch"></span> c10</div>
+        <div class="col-8"><span class="c11 docs-swatch"></span> c11</div>
+        <div class="col-8"><span class="c12 docs-swatch"></span> c12</div>
+        <div class="col-8"><span class="c13 docs-swatch"></span> c13</div>
+        <div class="col-8"><span class="c14 docs-swatch"></span> c14</div>
+        <div class="col-8"><span class="c15 docs-swatch"></span> c15</div>
+        <div class="col"></div>
+      </div>
+    </div>
+  </figure>
+
+  <h3 id="aliases">Semantic aliases</h3>
+
+  <p>Components never name a slot. They name a role, and
+  <code>tokens.css</code> points each role at a slot:</p>
+
+<pre><code>--border: var(--c8);  --muted: var(--c8);
+--error: var(--c1);   --ok: var(--c2);
+--warn: var(--c3);    --info: var(--c4);
+--accent: var(--c5);  --link: var(--c4);</code></pre>
+
+  <p>Overriding an alias is legal for every theme except the default. A
+  <code>&lt;link&gt;</code>ed theme declares only its own variables, so an
+  alias that the default set and the next theme does not would survive the
+  swap and tint the new scheme. Several shipped themes do override
+  <code>--muted</code> and <code>--border</code>, because in Tomorrow Night
+  and Solarized Dark <code>--c8</code> <em>is</em> the background and dim text
+  would otherwise be invisible.</p>
+
+  <h3 id="lint">Themes are linted, not eyeballed</h3>
+
+  <p><code>test/themes.spec.js</code> checks every theme in two halves, with
+  no browser.</p>
+
+  <dl class="kv">
+    <dt>contract</dt>
+    <dd>exactly that variable set, as hex, under <code>:root</code> only, and
+    no non-custom property anywhere in the file.</dd>
+
+    <dt>legibility</dt>
+    <dd>WCAG ratios for the pairs the grid layer actually paints — 4.5:1 for
+    body text and inverse video, 4:1 for the cursor and selection pairs,
+    2.5:1 for semantic foregrounds, and 2.4:1 for dim text and box edges,
+    which are meant to recede.</dd>
+  </dl>
+
+  <p class="mt-1">The second half is the one that matters. Inverse video is
+  everywhere in this framework — every heading, badge, status bar and active
+  nav item — so a palette whose background is only <em>nearly</em> legible
+  against its foreground fails in a hundred places at once rather than one.
+  A new theme should pass the lint before it is shipped.</p>
+
+  <figure class="ex">
+    <figcaption>what the lint is protecting, in the current theme</figcaption>
+    <div class="ex-live">
+      <p><span class="inverse">inverse video</span>
+      <span class="badge badge-ok">ok</span>
+      <span class="badge badge-warn">warn</span>
+      <span class="badge badge-error">error</span>
+      <span class="dim">dim text</span>
+      <a href="#lint">a link</a></p>
+      <div class="box mt-1">
+        <span class="box-edge"></span>
+        <span class="box-title">a box edge</span>
+        <p>Body text, which carries the 4.5:1 floor.</p>
+      </div>
+    </div>
+  </figure>
+
+  <h3 id="font-size">Changing the font size</h3>
+
+  <p><code>--wt-font-size</code> is the only px value in the framework, and
+  the line-height derives from it:</p>
+
+<pre><code>:root { --wt-font-size: 20px; }</code></pre>
+
+  <p>Each font's <code>--wt-lh-ratio</code> is the largest value that stays
+  seam-free from 10px to 32px, so any size in that range works. 16px is where
+  all three bundled fonts hit their per-size optimum, which is why it is the
+  default.</p>
+
+  <p>Changing the size changes nothing else. Every length in the framework is
+  a multiple of a cell, and the cell is derived from the size — so the whole
+  page scales and stays on the grid, which is the one thing a rem-based
+  framework also promises and does not deliver at a border.</p>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>
