@@ -19,7 +19,7 @@ const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 const srcFiles = () => {
   const out = [path.join(root, 'src', 'webterm.css')];
-  for (const dir of ['grid', 'themes']) {
+  for (const dir of ['grid', 'themes', 'skin']) {
     const d = path.join(root, 'src', dir);
     for (const f of fs.readdirSync(d).filter((n) => n.endsWith('.css'))) {
       out.push(path.join(d, f));

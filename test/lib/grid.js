@@ -85,6 +85,33 @@ async function showFixed(page) {
   await page.evaluate((id) => document.getElementById(id)?.remove(), HIDE_ID);
 }
 
+/*
+ * A screenshot, retried.
+ *
+ * Page.captureScreenshot intermittently answers "Unable to capture
+ * screenshot" on the first attempt after a page settles, which is where every
+ * pixel suite takes its first shot. It happens perhaps one run in three, it
+ * clears on a retry, and because the shot is usually taken in a `before` hook
+ * the failure cancels every assertion in the suite rather than failing one —
+ * which is what the README used to describe as "three assertions come back
+ * cancelled; run it again".
+ *
+ * A retry is the right fix rather than a looser assertion: the screenshot is
+ * an input to the check, not the check.
+ */
+async function shoot(page, opts = {}) {
+  let last;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await page.screenshot({ animations: 'disabled', caret: 'hide', ...opts });
+    } catch (err) {
+      last = err;
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+  }
+  throw last;
+}
+
 module.exports = {
-  TOL, cellSize, rects, offGrid, describeRect, screenColumns, hideFixed, showFixed,
+  TOL, cellSize, rects, offGrid, describeRect, screenColumns, hideFixed, showFixed, shoot,
 };

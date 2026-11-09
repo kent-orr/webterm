@@ -33,9 +33,14 @@
       readout. The kitchen sink <code>grid.spec.js</code> measures.</dd>
 
       <dt><a href="behavior.html">behavior.html</a></dt>
-      <dd>Layer 4: toasts, loading, placeholders and modals, with a motion
-      switch. The page <code>behavior.spec.js</code> measures — including with
+      <dd>Layer 4: toasts, loading, placeholders, modals, collapse, tabs,
+      dropdowns, tooltips and offcanvas, with a motion switch. The page <code>behavior.spec.js</code> measures — including with
       JavaScript disabled.</dd>
+
+      <dt><a href="skin.html">skin.html</a></dt>
+      <dd>Layer 3: the CRT glass, the vignette and the blinking cursor, with
+      every token on a live control. <code>skin.spec.js</code> measures the
+      kitchen sink with the glass on and off.</dd>
 
       <dt><a href="default-theme.html">default-theme.html</a></dt>
       <dd>The framework with no theme <code>&lt;link&gt;</code> at all, so the
@@ -64,11 +69,12 @@
         <tr><td>grid.spec.js</td><td class="num">46</td><td>integer cells, continuous borders</td></tr>
         <tr><td>default.spec.js</td><td class="num">5</td><td>the default paints, a link beats it</td></tr>
         <tr><td>behavior.spec.js</td><td class="num">180</td><td>layer 4, cell-exact mid-animation</td></tr>
+        <tr><td>skin.spec.js</td><td class="num">27</td><td>layer 3 moves nothing, and is inert unapplied</td></tr>
         <tr><td>metrics.spec.js</td><td class="num">340</td><td>font metrics — 100 known failures</td></tr>
       </tbody>
     </table>
-    <p class="mt-1 dim">npm test runs all of them in one process: 785 tests,
-    685 pass. The 100 failures are a wrong assertion rather than a layout bug
+    <p class="mt-1 dim">npm test runs all of them in one process: 812 tests,
+    712 pass. The 100 failures are a wrong assertion rather than a layout bug
     — see PLAN §8.</p>
   </div>
 

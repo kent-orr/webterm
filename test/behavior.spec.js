@@ -20,7 +20,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer } = require('./lib/server');
-const { TOL, cellSize, rects, offGrid, describeRect, screenColumns, hideFixed, showFixed } = require('./lib/grid');
+const { TOL, cellSize, rects, offGrid, describeRect, screenColumns, hideFixed, showFixed, shoot} = require('./lib/grid');
 const borders = require('./lib/borders');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -457,7 +457,7 @@ describe('createBox', () => {
   // from one typed into the page, which means the same pixel sweep.
   test('a built box has four corners and continuous edges', async () => {
     await hideFixed(page);
-    const shot = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
+    const shot = await shoot(page, { fullPage: true });
     await showFixed(page);
     const png = borders.readShot(shot);
     const boxes = await borders.boxGeometry(page, '#built > .box');
@@ -1754,7 +1754,7 @@ describe('toast stack', () => {
     // Only the status bar and the static drawer, both of which are pinned to
     // the bottom edge where the toast stack is; the toast is the subject here.
     await hideFixed(page, '.statusbar-fixed, dialog.offcanvas[open]');
-    const shot = await page.screenshot({ animations: 'disabled', caret: 'hide' });
+    const shot = await shoot(page, {});
     await showFixed(page);
     const png = borders.readShot(shot);
     // A toast is fixed, so its client rect is already viewport-relative and
@@ -2187,7 +2187,7 @@ describe('modal', () => {
   test('a dialog draws four corners and continuous edges', async () => {
     await page.click('[data-wt-toggle="modal"][data-wt-target="#modal-demo"]');
     await hideFixed(page, '.statusbar-fixed, dialog.offcanvas[open]');
-    const shot = await page.screenshot({ animations: 'disabled', caret: 'hide' });
+    const shot = await shoot(page, {});
     await showFixed(page);
     const png = borders.readShot(shot);
     const boxes = await borders.boxGeometry(page, '#modal-demo', { fixed: true });

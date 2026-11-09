@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono crt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — skin</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="../src/themes/pawpaw.css" id="theme">
+<link rel="stylesheet" href="../src/skin/crt.css">
+<style>
+  /* Page chrome only. Nothing here sets a length that is not a whole cell. */
+  body { padding-bottom: 2lh; }
+  .screen { padding: 1lh 1ch; }
+</style>
+</head>
+<body>
+
+<div class="screen">
+
+  <h1>webterm — skin</h1>
+
+  <nav class="nav mt-1">
+    <a href="components.html">components</a>
+    <a href="behavior.html">behavior</a>
+    <a href="#" class="active">skin</a>
+  </nav>
+
+  <p class="mt-1 dim">Layer 3, PLAN §12. One link and one class. The skin
+  declares nothing that can move an element: every box on this page is the
+  same box with the glass off, and <code>skin.spec.js</code> measures it.</p>
+
+  <div class="row mt-2">
+
+    <div class="col-40">
+      <div class="box">
+        <span class="box-edge"></span>
+        <span class="box-title">Glass</span>
+        <div style="padding: 0 1ch;">
+          <div><label><input type="checkbox" id="scan" checked> scanlines and glow (<code>.crt</code>)</label></div>
+          <div><label><input type="checkbox" id="vignette"> vignette (<code>.crt-vignette</code>)</label></div>
+          <div><label><input type="checkbox" id="motion"> motion off (<code>data-wt-motion</code>)</label></div>
+
+          <div class="form-row mt-1">
+            <label class="form-label" for="ink">ink, 1/100</label>
+            <input type="number" class="field field-8" id="ink" min="0" max="100" step="5" value="20">
+          </div>
+
+          <div class="form-row">
+            <label class="form-label" for="glow">glow, cells/100</label>
+            <input type="number" class="field field-8" id="glow" min="0" max="100" step="2" value="18">
+          </div>
+
+          <div class="form-row">
+            <label class="form-label" for="theme-pick">theme</label>
+            <div class="select select-16">
+              <select id="theme-pick">
+                <option value="">pawpaw (default)</option>
+                <option value="tomorrow-night">tomorrow-night</option>
+                <option value="solarized-dark">solarized-dark</option>
+                <option value="solarized-light">solarized-light</option>
+                <option value="gruvbox-dark">gruvbox-dark</option>
+                <option value="dracula">dracula</option>
+                <option value="nord">nord</option>
+                <option value="green-phosphor">green-phosphor</option>
+                <option value="amber-phosphor">amber-phosphor</option>
+              </select>
+            </div>
+          </div>
+          <p class="mt-1 dim">The ink is <code>--bg</code>: the ANSI slots are
+          a palette, not a brightness order, so there is no "darkest" token to
+          reach for — <code>--c0</code> is a <em>light</em> tone in
+          solarized-light. This darkens a dark theme and does nothing to a
+          light one, and never inverts. Set <code>--wt-crt-ink</code> to
+          <code>var(--fg)</code> to see the shape of it.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-40">
+      <div class="box">
+        <span class="box-edge"></span>
+        <span class="box-title">Cursor</span>
+        <div style="padding: 0 1ch;">
+          <p>The skin adds the blink and nothing else. The lit cell is
+          <code>.inverse</code> from the grid layer, so with the skin left out
+          a cursor stops blinking rather than disappearing.</p>
+          <p class="mt-1 pre">$ tail -f /var/log/webterm<span class="inverse cursor-blink"> </span></p>
+          <p class="mt-1 dim">Steady, for comparison:</p>
+          <p class="pre">$ <span class="inverse"> </span></p>
+          <p class="mt-1 dim">Eight ticks lit, eight clear — 480ms each at the
+          default <code>--wt-tick</code>. It steps; it does not fade.</p>
+        </div>
+      </div>
+
+      <div class="box mt-1">
+        <span class="box-edge"></span>
+        <span class="box-title">Phosphor</span>
+        <div style="padding: 0 1ch;">
+          <p>The glow is <code>currentColor</code>, so each slot glows in its
+          own color:</p>
+          <p class="mt-1 pre"><span class="c1">error</span> <span class="c2">ok</span> <span class="c3">warn</span> <span class="c4">info</span> <span class="c5">accent</span> <span class="c6">cyan</span></p>
+          <p class="mt-1 dim">And it covers the §8 horizontal seam. Covers —
+          the seam is still there with the glass off.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box mt-2">
+    <span class="box-edge"></span>
+    <span class="box-title">Under the glass</span>
+    <div style="padding: 0 1ch;">
+      <p>Box borders, a table and a progress bar, so the scanlines have
+      something with long horizontal runs to sit over.</p>
+      <table class="table-zebra mt-1">
+        <colgroup><col style="width: 20ch"><col style="width: 12ch"><col style="width: 30ch"></colgroup>
+        <thead><tr><th>host</th><th class="num">load</th><th>state</th></tr></thead>
+        <tbody>
+          <tr><td>alpha</td><td class="num">0.42</td><td class="fg-ok">ready</td></tr>
+          <tr><td>bravo</td><td class="num">1.19</td><td class="fg-warn">draining</td></tr>
+          <tr><td>charlie</td><td class="num">3.07</td><td class="fg-error">behind</td></tr>
+        </tbody>
+      </table>
+      <div class="progress mt-1" style="--cells: 40; --fill: 26"><span class="bar"></span></div>
+      <div class="box box-double mt-1" style="--cells: 40">
+        <span class="box-edge"></span>
+        <span class="box-title">Double</span>
+        <p style="padding: 0 1ch;">A second border style, for the seams.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm</span>
+  <span class="spacer"></span>
+  <span id="s-skin">crt</span>
+  <span id="s-geom">—</span>
+</div>
+
+<script>
+// Demo page only. The skin is a stylesheet; none of this is part of it.
+const $ = (s) => document.querySelector(s);
+const root = document.documentElement;
+
+function readout() {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;width:100ch;height:100lh';
+  document.body.append(probe);
+  const r = probe.getBoundingClientRect();
+  probe.remove();
+  const ch = r.width / 100;
+  const lh = r.height / 100;
+  const screen = $('.screen').getBoundingClientRect();
+  $('#s-geom').textContent = Math.round(screen.width / ch) + '×' +
+    Math.floor(window.innerHeight / lh);
+  $('#s-skin').textContent = [...root.classList]
+    .filter((c) => c.startsWith('crt')).join(' ') || 'no skin';
+}
+
+$('#scan').addEventListener('change', (e) => {
+  root.classList.toggle('crt', e.target.checked);
+  readout();
+});
+
+$('#vignette').addEventListener('change', (e) => {
+  root.classList.toggle('crt-vignette', e.target.checked);
+  readout();
+});
+
+$('#motion').addEventListener('change', (e) => {
+  if (e.target.checked) root.setAttribute('data-wt-motion', 'off');
+  else root.removeAttribute('data-wt-motion');
+});
+
+$('#ink').addEventListener('input', (e) => {
+  root.style.setProperty('--wt-crt-scan-ink', e.target.value / 100);
+});
+
+$('#glow').addEventListener('input', (e) => {
+  root.style.setProperty('--wt-crt-glow', e.target.value / 100);
+});
+
+$('#theme-pick').addEventListener('change', (e) => {
+  $('#theme').href = '../src/themes/' + (e.target.value || 'pawpaw') + '.css';
+});
+
+addEventListener('resize', readout);
+document.fonts.ready.then(() => {
+  readout();
+  root.dataset.ready = '1';
+});
+</script>
+</body>
+</html>

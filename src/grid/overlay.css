@@ -45,6 +45,11 @@
      be right for a page that opens one without it. */
   --wt-z-offcanvas: 31;
   --wt-z-modal: 32;
+  /* The skin's glass is in front of all of it (PLAN §12.6). The rung is
+     declared here rather than in the skin because the whole point of this
+     scale is that it is one list; a <dialog> in the top layer still paints
+     above it, which is a limitation of the top layer, not of the order. */
+  --wt-z-skin: 40;
 
   /* Where a dialog's top edge sits when nothing has measured it (PLAN §11.3). */
   --wt-dialog-top: 4lh;

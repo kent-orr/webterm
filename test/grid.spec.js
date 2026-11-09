@@ -19,7 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer } = require('./lib/server');
-const { TOL, cellSize, rects, offGrid, describeRect, hideFixed, showFixed } = require('./lib/grid');
+const { TOL, cellSize, rects, offGrid, describeRect, hideFixed, showFixed, shoot } = require('./lib/grid');
 const borders = require('./lib/borders');
 
 const SRC = path.resolve(__dirname, '..', 'src');
@@ -166,7 +166,7 @@ describe('box borders', () => {
     // so the pinned status bar would paint over whatever border happens to be
     // behind it. Its own geometry is checked in the cell grid suite.
     await hideFixed(page);
-    const shot = await page.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' });
+    const shot = await shoot(page, { fullPage: true });
     png = borders.readShot(shot);
     boxes = await borders.boxGeometry(page, '.box');
   });

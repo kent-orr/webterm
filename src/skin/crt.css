@@ -1,0 +1,174 @@
+/*
+ * webterm skin — .crt  (PLAN §6, §12)
+ *
+ * Layer 3. Optional, additive, and defined by one rule:
+ *
+ *     the skin declares nothing that can move an element.
+ *
+ * That is measured rather than promised. On a real element this file sets
+ * text-shadow, an animation and custom properties and nothing else; everything
+ * it paints is on a `position: fixed` pseudo-element; and every selector names
+ * a skin class, so a page that links this file without applying one is
+ * pixel-identical to a page that never linked it. test/skin.spec.js holds all
+ * three, and measures every box on the kitchen sink with the skin on and off.
+ *
+ * Two constraints come straight from the layers below:
+ *
+ *   No px, rem or em — the same lint as the grid layer. A scanline is a
+ *   sub-cell shape, which looks like the one place a pixel would be needed. It
+ *   is not: the period is 1lh and the ink band is a fraction of 1lh, so there
+ *   is one scanline per *character row* by construction and the effect scales
+ *   with the font instead of drifting away from it.
+ *
+ *   No literal color — also the same lint. A skin that names a color stops
+ *   surviving a theme swap. Both overlays are ramps in alpha, and alpha with
+ *   no rgba() or color-mix() available comes from a mask instead: a solid fill
+ *   of a theme color, masked by a gradient that is the shape of the effect,
+ *   with the layer's own opacity for its strength. A mask reads only alpha, so
+ *   its `currentColor` and `transparent` stops name no color either.
+ *
+ * Usage — one link and one class:
+ *
+ *   <link rel="stylesheet" href="src/skin/crt.css">
+ *   <html class="font-jetbrains-mono crt crt-vignette">
+ *
+ * Put `.crt` on <html> or <body>. The two overlays are that element's ::before
+ * and ::after, and a .box already uses both of its own to draw its border, so
+ * `.crt` on a box would erase it.
+ */
+
+:root {
+  /*
+   * The one ink.
+   *
+   * It is --bg, and the reason is that the §5.1 contract has no "darkest"
+   * token to reach for. --c0 looks like one — a scanline is the absence of
+   * phosphor, so it should ink in the theme's black — but the ANSI slots are a
+   * palette and not a brightness order: solarized-light sets --c0 to #eee8d5,
+   * because that is what the light Solarized terminal palette puts in slot 0.
+   * A --c0 overlay would *lighten* that theme, which is worse than doing
+   * nothing to it.
+   *
+   * --bg darkens a dark theme and is a no-op on a light one. It never
+   * inverts, which is the property worth having, and a CRT on a light theme
+   * is close to a contradiction anyway. A page that wants one regardless sets
+   * this token to var(--fg).
+   */
+  --wt-crt-ink: var(--bg);
+
+  /* Rows per scanline, and how much of the row the ink covers. */
+  --wt-crt-scan-rows: 1;
+  --wt-crt-scan-thickness: 0.5;
+  --wt-crt-scan-ink: 0.2;
+
+  /* Glow radius, in cells. 0 turns it off without touching a class. */
+  --wt-crt-glow: 0.18;
+
+  --wt-crt-vignette-ink: 0.4;
+
+  /* Ticks lit, then the same number clear (PLAN §12.5). */
+  --wt-blink-ticks: 8;
+}
+
+/*
+ * The glow, inherited by everything under .crt.
+ *
+ * currentColor rather than a token, so a .c2 span glows green and a .c1 span
+ * glows red — a phosphor glows in the color it is lit in, and it is also the
+ * only form of this that needs no color literal. The radius is in cells, so it
+ * tracks the font size.
+ *
+ * It covers the faint horizontal seam of PLAN §8. It covers it: the seam is
+ * still there with the skin off, and a skin is not a fix for a layout bug.
+ */
+.crt {
+  text-shadow: 0 0 calc(var(--wt-crt-glow) * 1ch) currentColor;
+}
+
+/*
+ * The scanlines.
+ *
+ * Hard stops rather than a ramp: a soft scanline puts a gradient across a
+ * character cell, and painting a shape the grid cannot account for is the one
+ * thing this framework will not do.
+ *
+ * `fixed`, so this is glass in front of a moving page rather than a texture
+ * glued to the content. The lines are therefore row-aligned at rest and after
+ * a scroll of a whole number of rows, and sit mid-row at any other scroll
+ * offset. An absolute overlay inside .crt would be aligned at every offset but
+ * would not cover .statusbar-fixed, a toast stack or a drawer — the elements
+ * an overlay like this is most visible against.
+ */
+.crt::before,
+.crt-vignette::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: var(--wt-z-skin);
+  background-color: var(--wt-crt-ink);
+  pointer-events: none;
+  user-select: none;
+}
+
+.crt::before {
+  mask-image: repeating-linear-gradient(
+    to bottom,
+    currentColor 0 calc(var(--wt-crt-scan-thickness) * 1lh),
+    transparent calc(var(--wt-crt-scan-thickness) * 1lh) calc(var(--wt-crt-scan-rows) * 1lh)
+  );
+  opacity: var(--wt-crt-scan-ink);
+}
+
+/* Opt-in, and nothing new: the same fill under a different mask. */
+.crt-vignette::after {
+  mask-image: radial-gradient(ellipse at center, transparent 45%, currentColor 100%);
+  opacity: var(--wt-crt-vignette-ink);
+}
+
+/*
+ * The cursor.
+ *
+ * This adds the animation and nothing else. The lit cell is .inverse from the
+ * grid layer:
+ *
+ *   <span class="inverse cursor-blink"> </span>
+ *
+ * which is the layer rule applied to the one piece of the skin that is not an
+ * overlay — a skin that painted the cell as well would mean a page whose
+ * cursor *disappears* when the skin is left out, instead of one that stops
+ * blinking.
+ *
+ * steps(2, jump-none) over 1 -> 0 holds the first half of the period lit and
+ * the second half clear: on and off, never a fade, because a terminal cursor
+ * does not fade. The period is a whole number of --wt-tick like every other
+ * animation in the framework.
+ */
+.cursor-blink {
+  animation:
+    wt-blink
+    calc(2 * var(--wt-blink-ticks) * var(--wt-tick))
+    steps(2, jump-none)
+    infinite;
+}
+
+@keyframes wt-blink {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/*
+ * Rule 6 of PLAN §11.2: reduced motion is the final state, not a faster
+ * animation. The final state of a blink is a visible cursor — losing the
+ * cursor is not a reduced-motion outcome anyone wants.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cursor-blink {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+[data-wt-motion="off"] .cursor-blink {
+  animation: none;
+  opacity: 1;
+}

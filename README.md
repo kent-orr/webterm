@@ -676,6 +676,74 @@ Each font's `--wt-lh-ratio` is the largest value that stays seam-free across
 10–32px, so any size in that range works, but 16px is where all three fonts hit
 their per-size optimum.
 
+## Skin
+
+Layer 3, optional and additive: a CRT glass over the page. One more `<link>`
+and one class on `<html>`.
+
+```html
+<link rel="stylesheet" href=".../src/skin/crt.css">
+```
+
+```html
+<html class="font-jetbrains-mono crt crt-vignette">
+```
+
+`.crt` is scanlines and a phosphor glow; `.crt-vignette` adds the corner
+falloff. Put them on `<html>` or `<body>` — the two overlays are that
+element's `::before` and `::after`, and a `.box` already uses both of its own
+to draw its border.
+
+The layer is defined by one rule: **the skin declares nothing that can move an
+element.** On a real element it sets `text-shadow`, an animation and custom
+properties, and nothing else; everything it paints is on a fixed
+pseudo-element; and every selector names a skin class, so linking `crt.css`
+without applying one leaves the page pixel-identical. `test/skin.spec.js`
+checks all three and measures every box on the kitchen-sink page with the skin
+on and off.
+
+There is no `px` in it either. The scanline period is `1lh` and the ink band a
+fraction of `1lh`, so there is one scanline per *character row* rather than
+every 2 or 4 pixels, and the glow radius is in `ch`. The effect scales with the
+font instead of drifting away from it.
+
+| token                      | default      | what it does                      |
+|----------------------------|--------------|-----------------------------------|
+| `--wt-crt-ink`             | `var(--bg)`  | the color both overlays paint in  |
+| `--wt-crt-scan-rows`       | `1`          | rows per scanline                 |
+| `--wt-crt-scan-thickness`  | `0.5`        | how much of the row the ink covers |
+| `--wt-crt-scan-ink`        | `0.2`        | scanline strength, 0 turns it off |
+| `--wt-crt-glow`            | `0.18`       | glow radius in cells, 0 turns it off |
+| `--wt-crt-vignette-ink`    | `0.4`        | vignette strength                 |
+| `--wt-blink-ticks`         | `8`          | ticks lit, then the same clear    |
+
+The ink is `--bg` because the theme contract has no darker token to reach for.
+`--c0` looks like one — a scanline is the absence of phosphor, so it should ink
+in the theme's black — but the ANSI slots are a palette and not a brightness
+order, and `solarized-light` sets `--c0` to `#eee8d5` because that is what slot
+0 of the light Solarized palette is. A `--c0` overlay would *lighten* that
+theme. `--bg` darkens a dark theme, does nothing to a light one, and never
+inverts. Set `--wt-crt-ink: var(--fg)` if you want one anyway.
+
+The glow is `currentColor`, so a `.c2` span glows green and a `.c1` span glows
+red. It also covers the faint horizontal seam described under Limitations —
+covers, not fixes: the seam is still there with the skin off.
+
+### The cursor
+
+```html
+<span class="inverse cursor-blink"> </span>
+```
+
+`.cursor-blink` adds the animation and nothing else. The lit cell is
+`.inverse` from the grid layer, so a page with the skin left out keeps a steady
+block cursor instead of losing it.
+
+It blinks on the framework's one clock: eight ticks lit, eight clear, 480ms
+each at the default `--wt-tick`. The step function is `steps(2, jump-none)`, so
+it is on and off rather than a fade — a terminal cursor does not fade. Under
+`prefers-reduced-motion` or `data-wt-motion="off"` it parks lit.
+
 ## Development
 
 ```sh
@@ -696,6 +764,8 @@ says what each one is for:
 - `test/components.html` — every CSS component, with live font and theme
   pickers and a cell/row readout
 - `test/behavior.html` — the behavior layer, with a motion switch
+- `test/skin.html` — layer 3, with the glass, the vignette, the cursor and the
+  tokens on live controls
 - `test/default-theme.html` — the framework with no theme link, so the shipped
   default has to paint it
 - `test/metrics.html` — the font calibration harness
@@ -717,6 +787,7 @@ widths have to match what ships. Rename a class and the README fails with it.
 | `readme.spec.js`                      | 8 pass — every class, set and license claim this file makes |
 | `grid.spec.js` + `default.spec.js`    | 51 pass — integer cells, continuous borders, the default paints and a `<link>` beats it |
 | `behavior.spec.js`                    | 180 pass — the behavior layer, cell-exact mid-animation, and the whole page with scripts disabled |
+| `skin.spec.js`                        | 27 pass — the skin moves nothing, and is inert until it is applied |
 | `metrics.spec.js`                     | 240 pass, **100 fail** — known, see below    |
 
 The 100 failures are a wrong assertion, not a layout bug. `metrics.spec.js`
@@ -727,11 +798,15 @@ matters still holds (N cells is N equal whole-px columns, regular and bold, no
 drift with N); the em-advance prediction the test checks is not what the
 browser uses. See PLAN §8.
 
-`npm test` runs every spec in one process — 785 tests, 685 pass, the same 100
-fail. In roughly one run in three, three of the browser assertions come back
-cancelled rather than passed; re-running clears it, and running a spec on its
-own never shows it. Treat a cancelled assertion as "run it again", not as a
-result.
+`npm test` runs every spec in one process — 812 tests, 712 pass, the same 100
+fail, repeatably.
+
+The intermittent cancellations this file used to warn about were
+`Page.captureScreenshot` answering "Unable to capture screenshot" on the first
+shot after a page settles. Because that shot is taken in a `before` hook, the
+failure cancelled every assertion in the suite rather than failing one. Every
+pixel suite now goes through `shoot()` in `test/lib/grid.js`, which retries
+twice — the screenshot is an input to the check, not the check.
 
 ## Limitations
 
@@ -754,6 +829,16 @@ result.
   silently rewriting a page's tab order is worse than the gap.
 - **A tab strip is horizontal only.** Arrow keys are left and right; a vertical
   tablist is not written.
+- **The skin's scanlines are glass, not a texture.** The overlay is fixed to
+  the viewport, so the lines sit on the row grid at rest and after a scroll of
+  a whole number of rows, and mid-row at any other scroll offset. An overlay
+  that scrolled with the content would be aligned always but would not cover
+  `.statusbar-fixed`, a toast stack or a drawer.
+- **The skin does not cover an open `<dialog>`.** A modal or a drawer opened
+  with `showModal()` is in the top layer, which paints above every `z-index`
+  there is. The dim behind it is under the glass; the dialog itself is not.
+- **A `.crt` on a `.box` erases its border.** The skin uses that element's
+  `::before` and `::after`, and so does a box. Put it on `<html>` or `<body>`.
 - **A collapse body is a formatting context** (`display: flow-root`), so a
   margin on its first or last child sits inside the body rather than collapsing
   through it. That is deliberate — the clamp used during the animation

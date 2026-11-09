@@ -340,10 +340,11 @@ is stable.
 
 ## 6. Layer 3: skin (optional)
 
-- `.crt` — scanline overlay via repeating-linear-gradient, slight text glow
-  via `text-shadow`, optional vignette.
-- `.cursor-blink` — blinking inverse cell for inputs.
+- `.crt` — scanline overlay, slight text glow, optional vignette.
+- `.cursor-blink` — a blinking inverse cell for inputs.
 - Must not alter any layout metric. Purely visual overlays.
+
+Specified in §12.
 
 ## 7. Repo layout
 
@@ -434,7 +435,11 @@ webterm/
    checks the default in the browser (§5.2).
 6. **Tests** — Playwright checks: every `.box` edge lands on an integer
    `ch`/`lh` boundary; borders have no sub-cell gaps (pixel diff).
-7. **Skin** — `.crt`.
+7. **Skin** — `.crt`. ✅
+   `src/skin/crt.css`: scanlines, glow, vignette and the cursor blink, with the
+   layer held to one rule — it declares nothing that can move an element
+   (§12). `test/skin.spec.js` measures that three ways, and `test/skin.html`
+   is the demo.
 8. **Behavior** — layer 4 (§11). ✅
    Round one: foundation, loading, placeholders, toasts and modals. Round two
    (§11.10): collapse, tabs, dropdown, tooltip and offcanvas. Each phase
@@ -944,3 +949,164 @@ rather than restating them:
 - **single-cell glyphs** extends to the collapse markers, in all three fonts
 - **one timer** — a tooltip's delay, a collapse's step and a drawer's slide all
   go through the one clock, so `motion.clock.jobs` returns to zero after each
+
+## 12. Layer 3: the skin
+
+§6 names three effects and one rule. The rule is the interesting part, and it
+is the same shape as the rule that defines each of the other layers: the grid
+names no color, the theme sets nothing but color, the behavior layer is
+something the CSS never depends on (§11.1). The skin's rule is:
+
+> **the skin declares nothing that can move an element.**
+
+Not "should not" — it is measurable, and `skin.spec.js` measures it twice.
+Every rect on the kitchen-sink page is identical with `.crt` and without it,
+and a page that loads `crt.css` but never applies the class is pixel-identical
+to one that does not load it at all. The first holds the §6 promise. The second
+makes the skin something a page can ship unconditionally and switch on at
+runtime, which is what a skin is for.
+
+### 12.1 Three constraints that fall out of the layer rules
+
+**No `px`, `rem` or `em` — the same lint as the grid layer.** A scanline is a
+sub-cell shape, which looks like the one place the framework would have to
+reach for a pixel. It does not: the period is `1lh` and the ink band is a
+fraction of `1lh`, so a scanline is one line per *character row* by
+construction, and the effect scales with the font instead of drifting away from
+it as the page's font-size changes. Every other skin length is a fraction of
+`1ch` or `1lh` for the same reason. The glow radius is in `ch`.
+
+Naming it this way is also the webterm-specific part of the effect. A CRT skin
+elsewhere picks a 2px or 4px period because it has no better unit available;
+here the row *is* the unit, and the lines land on the same boundaries the text
+does.
+
+**No literal color — also the same lint as the grid layer.** A skin that names
+a color stops surviving a theme swap, which is the one thing every layer above
+the theme has to do. That is a real constraint rather than a stylistic one,
+because the two overlay effects are both ramps in *alpha*, and alpha with no
+color function (`rgba()`, `color-mix()`) available has to come from somewhere
+else. It comes from a mask: each overlay is a solid fill of a theme color,
+masked by a gradient that is the *shape* of the effect, with the layer's
+`opacity` for its strength. The mask's own stops are `currentColor` and
+`transparent` — in a mask only the alpha is read, so neither names a color
+either.
+
+**The ink is `--bg`, because the contract has no darker token.** `--c0` looks
+like the right answer — a scanline is the absence of phosphor, so it should ink
+in the theme's black — and it is wrong. The ANSI slots are a *palette*, not a
+brightness order: `solarized-light` sets `--c0: #eee8d5`, because slot 0 of the
+light Solarized terminal palette is a light tone. A `--c0` overlay would
+lighten that theme. `--bg` darkens a dark theme and is a no-op on a light one,
+which is the weaker effect and the one that never inverts; a CRT on a light
+theme is close to a contradiction anyway, and `--wt-crt-ink` is there for a
+page that wants one regardless.
+
+The cost is that the ink is also the page's background, so a *pixel* test for
+the scanline geometry cannot tell an inked row from a clear one. `skin.spec.js`
+sets `--wt-crt-ink` to `var(--fg)` for those two tests and leaves the default
+to the lint and the eye — the geometry is what the pixels are there to check.
+
+### 12.2 Scanlines
+
+```css
+.crt::before {
+  background-color: var(--wt-crt-ink);
+  mask-image: repeating-linear-gradient(to bottom,
+    currentColor 0 calc(var(--wt-crt-scan-thickness) * 1lh),
+    transparent calc(var(--wt-crt-scan-thickness) * 1lh)
+                calc(var(--wt-crt-scan-rows) * 1lh));
+  opacity: var(--wt-crt-scan-ink);
+}
+```
+
+Hard stops, not a ramp: a soft scanline would put a gradient across a character
+cell, and the one thing this framework will not do is paint a shape that the
+grid cannot account for. `--wt-crt-scan-rows` is 1 and
+`--wt-crt-scan-thickness` is 0.5 — half a row of ink, half a row clear.
+
+The overlay is `position: fixed`, so it is glass in front of a moving page
+rather than a texture glued to the content. The consequence is honest and
+belongs in the limitations: the lines are row-aligned at rest and after a
+scroll of a whole number of rows, and sit mid-row at any other scroll offset.
+The alternative — an absolute overlay inside the `.crt` element — is
+row-aligned at every offset but does not cover `.statusbar-fixed`, a toast
+stack or a drawer, which are exactly the elements an overlay like this is most
+visible against. Covering the whole screen is the point of the effect; perfect
+alignment while a scroll is in flight is not.
+
+### 12.3 Glow
+
+`text-shadow: 0 0 calc(var(--wt-crt-glow) * 1ch) currentColor`, set once on the
+`.crt` element and inherited by everything under it. `currentColor` rather than
+a token, so a `.c2` span glows green and a `.c1` span glows red — a phosphor
+glows in the color it is lit in, and that is also the only form that needs no
+color literal. The radius is in cells, so it tracks the font size.
+
+One side effect is worth naming rather than enjoying quietly: the glow covers
+the faint horizontal seam of §8. It covers it. It does not fix it, the seam is
+still there with the skin off, and a skin is not a solution to a layout bug.
+
+### 12.4 Vignette
+
+`.crt-vignette`, opt-in, same construction as the scanlines with an elliptical
+mask: transparent through the middle, opaque at the corners. Nothing new.
+
+### 12.5 The cursor
+
+`.cursor-blink` adds **only the animation**. The lit cell comes from `.inverse`
+in the grid layer, or from a `.field`'s block caret:
+
+```html
+<span class="inverse cursor-blink"> </span>
+```
+
+That is the layer rule applied to the one piece of the skin that is not an
+overlay. A skin that also painted the cell would mean a page whose cursor
+*disappears* when the skin is omitted; this way the skin is omitted and the
+cursor stops blinking, which is exactly the degradation §6 promises.
+
+It blinks on the same clock as everything else (§11.2 rule 5):
+`--wt-blink-ticks: 8` is 8 ticks lit and 8 clear, 480ms each at the default
+tick. The animation is `opacity: 1 -> 0` under `steps(2, jump-none)`, which
+holds 1 for the first half of the period and 0 for the second — on and off,
+never a fade, because a terminal cursor does not fade. Under reduced motion it
+parks lit (§11.2 rule 6): the final state of a blink is a visible cursor, and
+losing the cursor is not a reduced-motion outcome anyone wants.
+
+### 12.6 Where `.crt` goes
+
+On `<html>` or `<body>`. The two overlays are that element's `::before` and
+`::after`, and `.box` already uses both of its own for the border runs, so
+`.crt` on a box would erase its border. That is a documented restriction rather
+than a defensive rule, because defending against it would mean the skin
+generating DOM, and the skin is a stylesheet.
+
+`--wt-z-skin: 40` joins the declared stacking order in `overlay.css` rather
+than being invented here — the whole reason that scale exists is that it is one
+list (§11.3). It is the rung above `--wt-z-modal`. A `<dialog>` opened with
+`showModal()` is in the top layer and paints above every z-index there is, so
+the glass does not cover an open modal or drawer. The dim behind it is covered,
+the dialog itself is not, and that is a limitation, not a setting.
+
+### 12.7 What the spec checks
+
+`test/skin.spec.js`, against `test/components.html` with the skin injected, so
+the skin faces every component rather than a page built to flatter it:
+
+- **nothing moves** — every rect the grid suite measures is identical with
+  `.crt` and without it, to the pixel, and `.screen` keeps its column count
+- **unapplied is inert** — `crt.css` linked without the class leaves a
+  full-page screenshot byte-identical to the page without the link
+- **the period is a row** — the scanline mask's computed value resolves to
+  exactly `1lh`, and its ink band to `thickness × 1lh`
+- **the lines land on rows** — in pixels, at scroll 0 and after a whole-row
+  scroll
+- **the glass is inert** — no pointer events, no selection, not in the
+  accessibility tree, and the element under the center of the viewport is still
+  the one that was there before
+- **source lint** — no `px`/`rem`/`em`, no literal color, and every selector
+  scoped to a skin class, which is what makes the inertness structural rather
+  than lucky
+- **the blink is on the clock** — a whole number of ticks, and parked lit under
+  both `prefers-reduced-motion` and `data-wt-motion="off"`
