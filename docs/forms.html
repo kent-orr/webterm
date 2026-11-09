@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — forms</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html">layout</a>
+    <a href="boxes.html">boxes</a>
+    <a href="type.html">type</a>
+    <a href="forms.html" aria-current="page">forms</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="forms">Forms</h2>
+
+  <p>Every control is text. A button is its label plus four cells for the
+  brackets, a checkbox is three cells, a field is as many cells as you ask
+  for — so nothing here needs a measured size, and nothing here can be half a
+  cell wide. Focus is inverse video, never an outline ring: an outline is a
+  sub-cell box drawn in px, which is rule 1 and rule 4 at once.</p>
+
+  <h3 id="buttons">Buttons</h3>
+
+  <figure class="ex">
+    <figcaption>buttons</figcaption>
+    <div class="ex-live">
+      <p><button class="btn">OK</button>
+      <button class="btn btn-ok">Apply</button>
+      <button class="btn btn-error">Delete</button>
+      <button class="btn" disabled>Unavailable</button></p>
+    </div>
+  </figure>
+
+  <p>The brackets are generated content, so <code>[ OK ]</code> is exactly
+  six cells and the label inside is exactly what you typed. Hover and focus
+  invert the whole run, brackets included, which is what a terminal does to a
+  selected item.</p>
+
+  <h3 id="fields">Text fields</h3>
+
+  <p>A field is a dim fill N cells wide with a block caret, in the widths the
+  layout classes offer: <code>.field-8</code>, <code>-12</code>,
+  <code>-16</code>, <code>-24</code>, <code>-32</code> and
+  <code>.field-full</code>. The default is 20 cells.</p>
+
+  <figure class="ex">
+    <figcaption>fields</figcaption>
+    <div class="ex-live">
+      <p><input class="field field-24" placeholder="hostname">
+      <input class="field field-8" value="8080"></p>
+    </div>
+  </figure>
+
+  <p>The caret is a block, because a 1px I-beam in a character grid is the
+  same category error as a 1px border. A focused field takes the theme's
+  selection pair rather than a highlight of its own.</p>
+
+  <p>A <code>&lt;textarea&gt;</code> is the one control whose height is a row
+  count rather than a cell count, and <code>rows</code> already says it in
+  rows — so it needs nothing from the framework but the fill and the caret.
+  It does not resize: a drag handle sets a px height.</p>
+
+  <figure class="ex">
+    <figcaption>a textarea is sized in rows</figcaption>
+    <div class="ex-live">
+      <textarea class="field field-full" rows="3">rows, not pixels</textarea>
+    </div>
+  </figure>
+
+  <h3 id="checks">Checkboxes, radios and selects</h3>
+
+  <p>The native controls are replaced by their glyphs —
+  <code>[x]</code>, <code>[ ]</code>, <code>(•)</code>, <code>( )</code> —
+  and keep every behavior the browser gives them, including the label click
+  target and the keyboard.</p>
+
+  <figure class="ex">
+    <figcaption>checks and radios</figcaption>
+    <div class="ex-live">
+      <p><label><input type="checkbox" checked> follow</label>
+      <label><input type="checkbox"> verbose</label></p>
+      <p><label><input type="radio" name="mode" checked> fast</label>
+      <label><input type="radio" name="mode"> thorough</label></p>
+    </div>
+  </figure>
+
+  <figure class="ex">
+    <figcaption>a select</figcaption>
+    <div class="ex-live">
+      <div class="select select-24">
+        <select aria-label="theme">
+          <option>pawpaw</option>
+          <option>tomorrow-night</option>
+          <option>gruvbox-dark</option>
+        </select>
+      </div>
+    </div>
+  </figure>
+
+  <p>The wrapper is what carries the width and the <code>▾</code>; the
+  <code>&lt;select&gt;</code> inside it is a real select, so the dropdown it
+  opens is the operating system's. That one is not on the grid and cannot be
+  — it is not drawn by the page. If you need a menu that is, use the
+  <a href="boxes.html">box</a>-drawn dropdown in the behavior layer.</p>
+
+  <h3 id="rows">Form rows</h3>
+
+  <p><code>.form-row</code> is a label column of 16 cells and a control
+  column that takes the rest, with the one-cell gutter rows use everywhere
+  else.</p>
+
+  <figure class="ex">
+    <figcaption>a small form</figcaption>
+    <div class="ex-live">
+      <div class="box">
+        <span class="box-edge"></span>
+        <span class="box-title">Connect</span>
+        <div class="form-row">
+          <span class="form-label">host</span>
+          <input class="field field-32" value="alpha.internal">
+        </div>
+        <div class="form-row">
+          <span class="form-label">port</span>
+          <input class="field field-8" value="5432">
+        </div>
+        <div class="form-row">
+          <span class="form-label">tls</span>
+          <label><input type="checkbox" checked> require</label>
+        </div>
+        <div class="form-row">
+          <span class="form-label"></span>
+          <button class="btn btn-ok">Connect</button>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>

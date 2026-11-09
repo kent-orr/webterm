@@ -288,6 +288,8 @@ for (const file of PAGES) {
     const SELECTORS = [
       '.box', '.col', '[class*="col-"]', '.statusbar', 'th', 'td', 'hr',
       '.docs-nav', '.docs-main', '.ex-live', 'h1', 'h2', 'p', 'pre',
+      'table', 'blockquote', '.btn', '.field', '.select', '.badge',
+      '.progress', '.alert', '.menu', '.kv', '.box-divide',
     ];
 
     for (const sel of SELECTORS) {
@@ -359,7 +361,16 @@ for (const file of PAGES) {
                 if (text.trim() === '') child.remove();
                 else child.nodeValue = text.trim();
               } else if (child.nodeType === 8) child.remove();
-              else walk(child);
+              else {
+                // Playwright's screenshot hides the caret by setting an
+                // inline caret-color and clearing it again, which leaves
+                // style="" behind on every control that has one. The border
+                // test shoots before this one runs, so the residue is on the
+                // live markup and not in the listing. It is the harness's,
+                // not the page's.
+                if (child.getAttribute('style') === '') child.removeAttribute('style');
+                walk(child);
+              }
             }
           };
           walk(t.content);

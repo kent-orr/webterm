@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en" class="font-jetbrains-mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webterm — type and tables</title>
+<link rel="stylesheet" href="../fonts/webterm-fonts.css">
+<link rel="stylesheet" href="../src/webterm.css">
+<link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+<div class="screen">
+
+<!-- docs:chrome -->
+<header>
+  <h1>webterm</h1>
+  <nav class="nav docs-nav mt-1" aria-label="Pages">
+    <a href="index.html">intro</a>
+    <a href="layout.html">layout</a>
+    <a href="boxes.html">boxes</a>
+    <a href="type.html" aria-current="page">type</a>
+    <a href="forms.html">forms</a>
+  </nav>
+</header>
+<!-- /docs:chrome -->
+
+<main class="docs-main mt-2">
+
+  <h2 id="type">Type and tables</h2>
+
+  <p>Rule 2 says one font, one size, one line-height for the whole document,
+  and rule 3 says hierarchy comes from somewhere else. Between them they
+  delete the entire conventional toolkit: no scale, no leading, no weight
+  ramp beyond the two the font has, no indents.</p>
+
+  <p>What is left is the terminal's own toolkit — bold, dim, inverse,
+  underline, color, uppercase and blank rows — and it turns out to be enough,
+  because it is what every TUI has ever had.</p>
+
+  <h3 id="headings">Headings</h3>
+
+  <p>No class needed. The reset and <code>type.css</code> restyle plain HTML:
+  an <code>h1</code> is an inverse strip, <code>h2</code> and <code>h3</code>
+  get a rule on the row below, <code>h4</code> to <code>h6</code> are bold,
+  dim and uppercase in turn. Every one of them is the same size.</p>
+
+  <figure class="ex">
+    <figcaption>the whole heading scale</figcaption>
+    <div class="ex-live">
+      <h1>h1 — inverse</h1>
+      <h2>h2 — double rule</h2>
+      <h3>h3 — single rule</h3>
+      <h4>h4 — bold</h4>
+      <h5>h5 — muted</h5>
+      <h6>h6 — muted caps</h6>
+    </div>
+  </figure>
+
+  <p>The rules under <code>h2</code> and <code>h3</code> are glyph runs
+  clipped to the heading's width, which is why they stop where the text
+  block ends rather than where the words do.</p>
+
+  <h3 id="helpers">The type scale</h3>
+
+  <p>This is all of it. There is no size anywhere in the list.</p>
+
+  <figure class="ex">
+    <figcaption>attribute helpers</figcaption>
+    <div class="ex-live">
+      <p><span class="bold">.bold</span>
+      <span class="dim">.dim</span>
+      <span class="uc">.uc</span>
+      <span class="underline">.underline</span>
+      <span class="strike">.strike</span>
+      <span class="inverse">.inverse</span></p>
+    </div>
+  </figure>
+
+  <p><code>.pre</code> and <code>.nowrap</code> round it out, and because the
+  font ships upright only with <code>font-synthesis</code> off,
+  <code>&lt;em&gt;</code> is an underline rather than a faux-slanted glyph.
+  A synthesized oblique is a sheared bitmap: it leaves the advance width
+  alone, so it would stay on the grid, but it is not a glyph the font has.</p>
+
+  <h3 id="color">Color</h3>
+
+  <p>Sixteen ANSI slots, named <code>.c0</code> to <code>.c15</code>, plus
+  five semantic aliases that point into them. Use the aliases: a theme is
+  free to put any color in any slot, and <code>.c1</code> is only red by
+  convention.</p>
+
+  <figure class="ex">
+    <figcaption>the semantic aliases</figcaption>
+    <div class="ex-live">
+      <p><span class="fg-ok">.fg-ok</span>
+      <span class="fg-warn">.fg-warn</span>
+      <span class="fg-error">.fg-error</span>
+      <span class="fg-info">.fg-info</span>
+      <span class="fg-accent">.fg-accent</span>
+      <span class="dim">.dim</span></p>
+    </div>
+  </figure>
+
+  <h3 id="prose">Prose</h3>
+
+  <p>List markers live in their own cells, so a wrapped line hangs under the
+  text instead of under the bullet. An ordered list reserves four cells and
+  right-aligns the number, which keeps two- and three-digit items aligned
+  with each other.</p>
+
+  <figure class="ex">
+    <figcaption>lists, nested</figcaption>
+    <div class="ex-live">
+      <ul>
+        <li>a bullet sits in its own two cells</li>
+        <li>a long item wraps with its continuation lines hanging
+        underneath the text, not under the marker
+          <ul>
+            <li>nesting indents by whole cells</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </figure>
+
+  <figure class="ex">
+    <figcaption>a quote, a rule and a key</figcaption>
+    <div class="ex-live">
+      <blockquote>A quote is marked by a column of glyphs in the
+      left-hand cell, which is the only margin a terminal has.</blockquote>
+      <hr>
+      <p>Press <kbd>Ctrl</kbd> <kbd>C</kbd> to stop, or run
+      <code>make clean</code> first.</p>
+    </div>
+  </figure>
+
+  <h3 id="tables">Tables</h3>
+
+  <p>Give column widths in <code>ch</code> with a <code>&lt;colgroup&gt;</code>.
+  The table is <code>table-layout: fixed</code>, so without them auto layout
+  distributes leftover space in fractions of a pixel and puts every column
+  after the first off the grid. This is the single most common way to break
+  the illusion, and it is also the easiest to fix.</p>
+
+  <figure class="ex">
+    <figcaption>a table with its widths declared</figcaption>
+    <div class="ex-live">
+      <table class="table-zebra">
+        <colgroup>
+          <col style="width: 16ch"><col style="width: 12ch"><col style="width: 10ch">
+        </colgroup>
+        <thead>
+          <tr><th>name</th><th>state</th><th class="num">size</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>alpha</td><td class="fg-ok">ok</td><td class="num">12</td></tr>
+          <tr><td>bravo</td><td class="fg-ok">ok</td><td class="num">1024</td></tr>
+          <tr><td>charlie</td><td class="fg-warn">behind</td><td class="num">7</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>The separators are <code>│</code> glyphs drawn in the padding cell they
+  own, and the header rule is a <code>─</code> run with <code>┼</code> at each
+  crossing. Where a separator meets the rule the crossing wins, so the dash
+  run stops one cell short of it — that detail is why the header reserves a
+  blank row underneath itself.</p>
+
+  <p><code>.num</code> right-aligns a column, <code>.table-zebra</code>
+  stripes alternate rows, and a table pairs well with
+  <a href="boxes.html#modifiers"><code>.box-tight</code></a>, which drops the
+  gutter the table's own padding already provides.</p>
+
+</main>
+</div>
+
+<div class="statusbar statusbar-fixed">
+  <span>webterm docs</span>
+  <span class="spacer"></span>
+  <span id="docs-geom">&mdash;</span>
+</div>
+
+<script src="docs.js"></script>
+</body>
+</html>
